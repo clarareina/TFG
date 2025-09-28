@@ -1,0 +1,11 @@
+# Google Calendar API
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+google-api-python-client
+
+# Gemini
+google-generativeai
+
+# Para el agente
+langchain
