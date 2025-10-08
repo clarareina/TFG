@@ -1,0 +1,50 @@
+{"input": "Pon una reunión con Marta mañana a las 10 en la biblioteca"}
+{"input": "Agenda una cita médica el 10 de octubre a las 9:00 en Madrid"}
+{"input": "Organiza clase de repaso el viernes todo el día"}
+{"input": "Programa tutoría con Pedro los lunes a las 12 durante 4 semanas"}
+{"input": "Añade evento: presentación de TFG el 15 de noviembre a las 17:00, invita a laura@email.com y juan@email.com"}
+{"input": "Crea reunión de investigación el 20 de octubre a las 15h, color azul"}
+{"input": "Pon una reunión de equipo el 25 de octubre a las 10h, invita a Ana"}
+{"input": "Agrega cita con dentista el 30 de octubre de 10:00 a 11:00"}
+{"input": "Programa práctica de laboratorio el 5 de noviembre todo el día"}
+{"input": "Agenda conferencia online el 12 de noviembre a las 18h con enlace Meet"}
+{"input": "Elimina la reunión con Juan del 6 de octubre"}
+{"input": "Quita la clase de inglés del 5 al 8 de octubre"}
+{"input": "Borra la cita médica del 10 de octubre"}
+{"input": "Suprime evento Trabajo grupal"}
+{"input": "Cancela la tutoría del martes"}
+{"input": "Elimina la presentación de TFG del 15 de noviembre"}
+{"input": "Quita la reunión de investigación del 20"}
+{"input": "Borra la conferencia online del 12 de noviembre"}
+{"input": "Suprime el taller de laboratorio del 5 de noviembre"}
+{"input": "Elimina la reunión semanal con Pedro del lunes"}
+{"input": "Duplica la reunión de equipo del 3 al 10 de octubre a las 16h"}
+{"input": "Copia el examen del 8 de octubre al 15, misma hora"}
+{"input": "Clona la reunión de investigación del 4 al 11 de octubre"}
+{"input": "Repite la tutoría del 7 al 14 de octubre a las 9h"}
+{"input": "Duplica cita con Ana del lunes al miércoles"}
+{"input": "Copia el taller de laboratorio del 5 al 12 de noviembre"}
+{"input": "Clona la conferencia online del 12 al 19 de noviembre"}
+{"input": "Repite la reunión de ventas del 6 al 13 de octubre"}
+{"input": "Duplica la clase de repaso del viernes al siguiente viernes"}
+{"input": "Copia la reunión con Marta del 10 al 20 de octubre"}
+{"input": "Cambia el título de la reunión del 6 de octubre a 'Entrega final'"}
+{"input": "Modifica la reunión con Ana del 7: pon ubicación Aula 3.1"}
+{"input": "Actualiza la reunión con Juan del 8: cámbiala a las 12:00-13:30"}
+{"input": "Edita la cita médica del 9: márcala en rojo"}
+{"input": "Ajusta la tutoría del viernes: cambia descripción a 'Revisión parcial del TFG'"}
+{"input": "Modifica el examen del 15: cambia hora a 17:00-18:30"}
+{"input": "Edita la reunión de investigación del 20: pon enlace Meet"}
+{"input": "Cambia la conferencia online del 12: color amarillo"}
+{"input": "Actualiza el taller del 5: cambia ubicación a Laboratorio B"}
+{"input": "Modifica la reunión semanal con Pedro: ajusta hora a 11:00"}
+{"input": "Dime los eventos de esta semana."}
+{"input": "Muéstrame todos mis eventos de octubre."}
+{"input": "Enséñame las clases de inglés programadas este mes."}
+{"input": "Lista las reuniones con Pedro de la próxima semana."}
+{"input": "Quiero ver los eventos del calendario de trabajo entre el 10 y el 20 de octubre."}
+{"input": "Consulta los eventos del 15 al 18 de noviembre."}
+{"input": "Búscame las tutorías de este mes."}
+{"input": "Obtén todos los eventos que tengo la semana que viene."}
+{"input": "Dime qué eventos hay mañana."}
+{"input": "Muestra los eventos relacionados con el TFG de octubre."}
