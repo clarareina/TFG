@@ -1,4 +1,5 @@
-import google.generativeai as genai
-from googleapiclient.discovery import build
+from run_gemini_calendar import main as ejecutar_agente
 
-print("✅ Entorno configurado correctamente")
+if __name__ == "__main__":
+    print("🚀 Iniciando agente gestor de calendario...")
+    ejecutar_agente()
