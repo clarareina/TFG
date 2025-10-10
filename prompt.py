@@ -230,6 +230,26 @@ Respuesta:
   }
 }
 
+Usuario: "Mueve la reunión de equipo del 10 de octubre al 12 de octubre a las 15:30"
+Respuesta:
+{
+  "function": "patch_event",
+  "parameters": {
+    "name": "Reunión de equipo",
+    "start_date": "2025-10-10",
+    "changes": {
+      "start": {
+        "dateTime": "2025-10-12T15:30:00+00:00"
+      },
+      "end": {
+        "dateTime": "2025-10-12T16:30:00+00:00"
+      }
+    }
+  }
+}
+
+
+
 Usuario: "Dime los eventos de esta semana"
 Respuesta:
 {

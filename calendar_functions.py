@@ -129,7 +129,6 @@ def create_event(
 #GET ID ------------------------------------------------------------
 def get_id(name, start_date = None, end_date = None, calendar_id = "primary", service = svc):
     user_gave_date = start_date is not None  # <--- Flag
-    print('gave date: ', user_gave_date)
 
     if not start_date:
         start_date = datetime.now(timezone.utc).isoformat()
@@ -190,11 +189,21 @@ def get_events(name =  None,
         start_date = None, end_date = None, calendar_id = "primary",
         service = svc, max = 2500
 ):
-    #por defecto una semana
-    if not start_date: start_date = datetime.now(timezone.utc).isoformat()
-    if not end_date: end_date = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
-    
-    #busqueda por nombre
+    #por defecto un mes
+    if not start_date:
+        start_date = datetime.now(timezone.utc).isoformat()
+    else:
+        # Si el usuario pasa 'YYYY-MM-DD', convertir a ISO completo
+        if len(start_date) == 10:
+            start_date = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc).isoformat()
+
+    if not end_date:
+        end_date = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+    else:
+        if len(end_date) == 10:
+            end_date = datetime.fromisoformat(end_date).replace(tzinfo=timezone.utc).isoformat()
+       
+    #búsqueda por nombre
     if name:
          events_result = svc.events().list(
         calendarId=calendar_id,
