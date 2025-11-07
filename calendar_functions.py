@@ -1,147 +1,123 @@
 from calendar_service import get_service
-
-from datetime import datetime, timedelta, timezone
-from dateutil import tz
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+from state import UndoableAction
 import uuid
+from typing import Dict, Any
 
-# Obtenemos el servicio autenticado
+# Servicio autenticado
 svc = get_service()
 
+# Zona horaria fija (España)
+LOCAL_TZ = ZoneInfo("Europe/Madrid")
 
-#CREATE EVENT ------------------------------------------------------------
+# ----------------------------------------------------------------------
+# CREATE EVENT (FIJO EN EUROPE/MADRID)
+# ----------------------------------------------------------------------
 def create_event(
-    service = svc, name = None,
-    start_date = None,
-    end_date = None, start_time=None, end_time=None,
-    description="",
-    color_id="7",                 # Azul
-    visibility="default",         # "default" | "public" | "private"
-    transparency="opaque",        # "opaque" (ocupa) | "transparent" (no bloquea)
-    location="",
-    attendees=None,                  # lista de emails
-    default_reminder = True,
-    reminder=None,                # lista de dicts [{"method":"popup","minutes":10}]
-    zone="Europe/Madrid",
-    recurrence=None,              # lista de strings tipo ["RRULE:..."]
-    calendar_id="primary",
-    attachments=None,             # lista de dicts [{"fileUrl":"...","title":"..."}]
-    conference = False,            
-    source=None,                  # dict {"url":"...","title":"..."}
-    send_updates="none"           # "none" | "all" | "externalOnly"
-
+    service=svc, summary=None,
+    start_date=None, end_date=None,
+    start_time=None, end_time=None,
+    description="", colorId="7",
+    visibility="default", transparency="opaque",
+    location="", attendees=None,
+    default_reminder=True, reminder=None,
+    zone="Europe/Madrid", recurrence=None,
+    calendar_id="primary", attachments=None,
+    conference=False, source=None,
+    send_updates="none"
 ):
-      
-    if not start_date: start_date = datetime.now().date().isoformat()
+    if not start_date:
+        start_date = datetime.now(LOCAL_TZ).date().isoformat()
     
-    event = {"summary": name}
+    event = {"summary": summary}
 
-    #----------CAMPOS DE FECHA Y HORA----------
-
-    #si dice fecha y hora inicio y fin
+    # Fechas y horas
     if end_date and start_time and end_time:
-        start_dt = f"{start_date}T{start_time}:00"
-        end_dt   = f"{end_date}T{end_time}:00"
-        event["start"] = {"dateTime": start_dt, "timeZone": zone}
-        event["end"]   = {"dateTime": end_dt,   "timeZone": zone}
+        start_dt = datetime.strptime(f"{start_date} {start_time}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
+        end_dt = datetime.strptime(f"{end_date} {end_time}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
+        event["start"] = {"dateTime": start_dt.isoformat(), "timeZone": "Europe/Madrid"}
+        event["end"] = {"dateTime": end_dt.isoformat(), "timeZone": "Europe/Madrid"}
 
-    #si dice fecha y hora inicio (sin fin) -> 1h por defecto
     elif start_time and not end_time and not end_date:
-        # Construir datetime con fecha y hora de inicio
-        inicio = datetime.strptime(f"{start_date} {start_time}", "%Y-%m-%d %H:%M")
+        inicio = datetime.strptime(f"{start_date} {start_time}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
         fin = inicio + timedelta(hours=1)
+        event["start"] = {"dateTime": inicio.isoformat(), "timeZone": "Europe/Madrid"}
+        event["end"] = {"dateTime": fin.isoformat(), "timeZone": "Europe/Madrid"}
 
-        # Convertir a string ISO para Calendar
-        start_dt = inicio.isoformat()
-        end_dt   = fin.isoformat()
-
-        event["start"] = {"dateTime": start_dt, "timeZone": zone}
-        event["end"]   = {"dateTime": end_dt,   "timeZone": zone}
-
-
-    #si dice fecha inicio y fin sin hora (varios dia completo)
     elif end_date and not start_time and not end_time:
         event["start"] = {"date": start_date}
-        event["end"]   = {"date": end_date}
+        event["end"] = {"date": end_date}
 
-    #si dice fecha inicio sin hora (1 dia completo)
     else:
         end_date = (datetime.fromisoformat(start_date) + timedelta(days=1)).date().isoformat()
         event["start"] = {"date": start_date}
-        event["end"]   = {"date": end_date}
+        event["end"] = {"date": end_date}
 
-
-    #----------CAMPOS DE CONTENIDO----------
-
+    # Resto igual
     if description: event["description"] = description
-    if location:   event["location"]    = location
-    if color_id:    event["colorId"]     = str(color_id)    
-    if visibility: event["visibility"]  = visibility      
+    if location: event["location"] = location
+    if colorId: event["colorId"] = str(colorId)
+    if visibility: event["visibility"] = visibility
     if transparency: event["transparency"] = transparency
-
-
-    #--------------------
-    if recurrence: event["recurrence"] = recurrence   # Ejemplo: ["RRULE:FREQ=WEEKLY;BYDAY=MO", "EXDATE:20251006T100000Z"]
-
+    if recurrence: event["recurrence"] = recurrence
     if attendees: event["attendees"] = [{"email": m} for m in attendees]
-
-    if default_reminder:
-        event["reminders"] = {"useDefault": True}
-    else:
-        event["reminders"] = {
-            "useDefault": False,
-            "overrides": reminder or []  # [{"method":"popup","minutes":10}, {"method":"email","minutes":1440}]
-        }
-    
+    event["reminders"] = (
+        {"useDefault": True} if default_reminder else
+        {"useDefault": False, "overrides": reminder or []}
+    )
     if attachments: event["attachments"] = attachments
-
-    if conference: event["conferenceData"] = {
+    if conference:
+        event["conferenceData"] = {
             "createRequest": {
-                "requestId": str(uuid.uuid4()),              # id único por petición
+                "requestId": str(uuid.uuid4()),
                 "conferenceSolutionKey": {"type": "hangoutsMeet"}
             }
         }
-    
     if source: event["source"] = source
 
-# ---------- 9) Llamada a la API ----------
-    # Param extras: sendUpdates (emails a invitados) y supportsAttachments
     params_insert = {
         "calendarId": calendar_id,
-        "body": event
+        "body": event,
+        "sendUpdates": send_updates
     }
-    if conference:
-        params_insert["conferenceDataVersion"] = 1
-    if attachments:
-        params_insert["supportsAttachments"] = True
-    # Envío de correos a invitados
-    params_insert["sendUpdates"] = send_updates  # "none" (por defecto), "all", "externalOnly"
+    if conference: params_insert["conferenceDataVersion"] = 1
+    if attachments: params_insert["supportsAttachments"] = True
 
-    created = service.events().insert(**params_insert).execute()
+    try:
+        created = service.events().insert(**params_insert).execute()
+        event_id = created['id']
 
-    print("✅ Evento creado:", created.get("htmlLink"))
-    if created.get("hangoutLink"):
-        print("🔗 Meet:", created["hangoutLink"])
-    print("🆔 ID:", created["id"])
-    return created
+        undo_info = UndoableAction(
+            operation="create_event", 
+            calendarId=calendar_id,
+            eventId=event_id,
+            previous_body=None
+        )
+
+        return {
+            "response": f"Se ha creado el evento “{summary}” correctamente.",
+            "undo_info": undo_info
+        }
+    except Exception as e:
+        return {"response": f"Error al crear: {e}", "undo_info": None}
 
 
-
-#GET ID ------------------------------------------------------------
-def get_id(name, start_date = None, end_date = None, calendar_id = "primary", service = svc):
-    user_gave_date = start_date is not None  # <--- Flag
+# ----------------------------------------------------------------------
+# GET ID 
+# ----------------------------------------------------------------------
+def get_id(summary, start_date=None, end_date=None, calendar_id="primary", service=svc):
+    user_gave_date = start_date is not None
 
     if not start_date:
-        start_date = datetime.now(timezone.utc).isoformat()
-    else:
-        # Si el usuario pasa 'YYYY-MM-DD', convertir a ISO completo
-        if len(start_date) == 10:
-            start_date = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc).isoformat()
+        start_date = datetime.now(LOCAL_TZ).isoformat()
+    elif len(start_date) == 10:
+        start_date = datetime.fromisoformat(start_date).replace(tzinfo=LOCAL_TZ).isoformat()
 
     if not end_date:
-        end_date = (datetime.now(timezone.utc) + timedelta(days=365)).isoformat()
-    else:
-        if len(end_date) == 10:
-            end_date = datetime.fromisoformat(end_date).replace(tzinfo=timezone.utc).isoformat()
+        end_date = (datetime.now(LOCAL_TZ) + timedelta(days=365)).isoformat()
+    elif len(end_date) == 10:
+        end_date = datetime.fromisoformat(end_date).replace(tzinfo=LOCAL_TZ).isoformat()
 
     events_result = service.events().list(
         calendarId=calendar_id,
@@ -156,151 +132,199 @@ def get_id(name, start_date = None, end_date = None, calendar_id = "primary", se
 
     for e in events:
         event_start = e["start"].get("dateTime", e["start"].get("date"))
-
-        # Coincide el nombre del evento
-        if e["summary"].lower() == name.lower():
-            if user_gave_date:  # usuario pasó fecha explícita
+        if e.get("summary", "").lower() == summary.lower():
+            if user_gave_date:
                 if event_start[:10] == start_date[:10]:
                     return e["id"]
-            else:  # no pasó fecha → basta con nombre
+            else:
                 return e["id"]
-    print("No se encontró el evento")
+
+    return None  
 
 
-#DELETE EVENT ------------------------------------------------------------
-def delete_event(name, start_date = None, end_date = None, 
-                    calendar_id = "primary", service = svc):
-
-    event_id = get_id(name, start_date, end_date, calendar_id, service)
-    if event_id:
-        svc.events().delete(
-            calendarId=calendar_id,
+# ----------------------------------------------------------------------
+# DELETE EVENT 
+# ----------------------------------------------------------------------
+def delete_event(summary, start_date=None, end_date=None, calendar_id="primary", service=svc):
+    event_id = get_id(summary, start_date, end_date, calendar_id, service)
+    if not event_id:
+        return {
+            "response": f"No se encontró el evento “{summary}”.",
+            "undo_info": None 
+        }
+    
+    try:
+        event_before_delete = service.events().get(
+            calendarId=calendar_id, 
             eventId=event_id
         ).execute()
 
-        return "Evento eliminado ✅"
-    else:
-        return None
+        service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+
+        undo_info = UndoableAction(
+            operation="delete_event",
+            calendarId=calendar_id,
+            eventId=event_id,
+            previous_body=event_before_delete 
+        )
+
+        return {
+            "response": f"He eliminado el evento “{summary}” correctamente.",
+            "undo_info": undo_info
+        }
     
+    except Exception as e:
+        return {"response": f"Error al eliminar: {e}", "undo_info": None}
 
 
-#GET EVENTS ------------------------------------------------------------
-def get_events(name =  None,
-        start_date = None, end_date = None, calendar_id = "primary",
-        service = svc, max = 2500
-):
-    #por defecto un mes
+# ----------------------------------------------------------------------
+# GET EVENTS 
+# ----------------------------------------------------------------------
+def get_events(summary=None, start_date=None, end_date=None, calendar_id="primary", service=svc, max=2500):
     if not start_date:
-        start_date = datetime.now(timezone.utc).isoformat()
-    else:
-        # Si el usuario pasa 'YYYY-MM-DD', convertir a ISO completo
-        if len(start_date) == 10:
-            start_date = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc).isoformat()
+        start_date = datetime.now(LOCAL_TZ).isoformat()
+    elif len(start_date) == 10:
+        start_date = datetime.fromisoformat(start_date).replace(tzinfo=LOCAL_TZ).isoformat()
 
     if not end_date:
-        end_date = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
-    else:
-        if len(end_date) == 10:
-            end_date = datetime.fromisoformat(end_date).replace(tzinfo=timezone.utc).isoformat()
-       
-    #búsqueda por nombre
-    if name:
-         events_result = svc.events().list(
-        calendarId=calendar_id,
-        timeMin=start_date,
-        timeMax=end_date,
-        q=name,
-        maxResults = max,
-        singleEvents=True,
-        orderBy='startTime'
-        ).execute()
-         
-    else:   
-        events_result = svc.events().list(
-            calendarId=calendar_id,
-            timeMin=start_date,
-            timeMax=end_date,
-            maxResults = max,
-            singleEvents=True,
-            orderBy='startTime'
-        ).execute()
-    
-    events = events_result.get('items', [])
+        end_date = (datetime.now(LOCAL_TZ) + timedelta(days=30)).isoformat()
+    elif len(end_date) == 10:
+        end_date = datetime.fromisoformat(end_date).replace(tzinfo=LOCAL_TZ).isoformat()
+        
+    query = {"calendarId": calendar_id, "timeMin": start_date, "timeMax": end_date,
+             "maxResults": max, "singleEvents": True, "orderBy": "startTime"}
+    if summary:
+        query["q"] = summary
+
+    events_result = service.events().list(**query).execute()
+    events = events_result.get("items", [])
 
     if not events:
-        print("No se encontraron próximos eventos.")
+        text = "No se encontraron eventos para ese periodo."
     else:
-        print("Próximos eventos:")
+        text = "Próximos eventos:\n"
         for e in events:
-            start = e['start'].get('dateTime', e['start'].get('date'))  # puede ser con hora o todo el día
-            print(f"- {start} | {e['summary']} | id={e['id']}")
-    return events
+            start = e["start"].get("dateTime", e["start"].get("date"))
+            text += f"- {start} | {e.get('summary', '(Sin título)')}\n"
+        text = text.strip()
+
+    return {
+        "response": text,
+        "undo_info": None
+    }
 
 
-
-#PATCH EVENT ------------------------------------------------------------
-def patch_event(name, start_date = None, changes = None, service = svc):
-    # changes puede ser {"summary": "nuevo título", "description": "texto"}
-    # o {"start": {...}, "end": {...}}
-
-    #Modificar un evento con PATCH
-    event_id = get_id(name, start_date, end_date = None, calendar_id = "primary", service = svc)
+# ----------------------------------------------------------------------
+# PATCH EVENT 
+# ----------------------------------------------------------------------
+def patch_event(summary, start_date=None, changes=None, service=svc):
+    event_id = get_id(summary, start_date, None, "primary", service)
     if not event_id:
-        return None
-
-    # Cambiamos título, descripción y ubicación de una sola vez
-    patched_event = svc.events().patch(
-        calendarId='primary',
-        eventId=event_id,
-        body=changes
-    ).execute()
-
-    print("Evento actualizado con PATCH ✅:",
-           patched_event.get('htmlLink'))
+        return {
+            "response": f"No se encontró el evento “{summary}”.",
+            "undo_info": None
+        }
     
+    if not changes:
+        return {
+            "response": f"Error: No se proporcionaron cambios ('changes').",
+            "undo_info": None
+        }
+
+    # --- INICIO CORRECCIÓN DE ZONA HORARIA ---
+    # Asignar zona horaria local a los 'dateTime' "naive" que vienen de Gemini
+    
+    # Revisar 'start'
+    if "start" in changes and changes["start"].get("dateTime"):
+        naive_dt_str = changes["start"]["dateTime"]
+        try:
+            # Parsear naive, asignar zona local
+            aware_dt = datetime.fromisoformat(naive_dt_str).replace(tzinfo=LOCAL_TZ)
+            # Actualizar 'changes' con el string ISO completo Y el timeZone
+            changes["start"]["dateTime"] = aware_dt.isoformat()
+            changes["start"]["timeZone"] = "Europe/Madrid"
+        except (ValueError, TypeError):
+            print(f"[patch_event] Error parseando start: {naive_dt_str}")
+            pass # Dejar que la API falle si el formato es incorrecto
+
+    # Revisar 'end'
+    if "end" in changes and changes["end"].get("dateTime"):
+        naive_dt_str = changes["end"]["dateTime"]
+        try:
+            # Parsear naive, asignar zona local
+            aware_dt = datetime.fromisoformat(naive_dt_str).replace(tzinfo=LOCAL_TZ)
+            # Actualizar 'changes' con el string ISO completo Y el timeZone
+            changes["end"]["dateTime"] = aware_dt.isoformat()
+            changes["end"]["timeZone"] = "Europe/Madrid"
+        except (ValueError, TypeError):
+            print(f"[patch_event] Error parseando end: {naive_dt_str}")
+            pass # Dejar que la API falle si el formato es incorrecto
+    # --- FIN CORRECCIÓN DE ZONA HORARIA ---
+
+    try:
+        event_before_patch = service.events().get(
+            calendarId="primary", 
+            eventId=event_id
+        ).execute()
+
+        # 'changes' ahora tiene la zona horaria correcta
+        svc.events().patch(calendarId="primary", eventId=event_id, body=changes).execute()
+
+        undo_info = UndoableAction(
+            operation="patch_event", 
+            calendarId="primary",
+            eventId=event_id,
+            previous_body=event_before_patch 
+        )
+        
+        return {
+            "response": f"El evento “{summary}” se actualizó correctamente.",
+            "undo_info": undo_info
+        }
+    except Exception as e:
+        return {"response": f"Error al actualizar: {e}", "undo_info": None}
 
 
+# ----------------------------------------------------------------------
+# DUPLICATE EVENT 
+# ----------------------------------------------------------------------
+def duplicate_event(service=svc, summary=None, original_date=None, new_date=None, new_time=None, calendar_id="primary"):
+    if not summary or not new_date:
+        return {
+            "response": "Debes indicar el nombre del evento original y la nueva fecha.",
+            "undo_info": None
+        }
 
-#DUPLICATE EVENT ------------------------------------------------------------
-def duplicate_event(
-    service=svc,
-    name=None,
-    original_date=None,
-    new_date=None,
-    new_time=None,
-    calendar_id="primary"
-):
-    if not name or not new_date:
-        print("Debes indicar el nombre del evento original y la nueva fecha")
-        return None
-
-    # Normalizar original_date a ISO, si no dice fecha bussca el evento desde la fecha actual
     if not original_date:
-        original_date = datetime.now(timezone.utc).isoformat()
+        original_date = datetime.now(LOCAL_TZ).isoformat()
 
-    # Buscar evento original
-    eventos = get_events(name=name, start_date=original_date,
-                          calendar_id=calendar_id, service=service)
+    eventos = service.events().list(
+        calendarId=calendar_id,
+        timeMin=original_date,
+        maxResults=5,
+        singleEvents=True,
+        orderBy="startTime",
+        q=summary
+    ).execute().get("items", [])
 
     if not eventos:
-        print("No se encontró el evento para duplicar")
-        return None
+        return {
+            "response": f"No se encontró el evento “{summary}” para duplicar.",
+            "undo_info": None
+        }
 
     original = eventos[0]
-    if not new_time: 
-        new_time = original["start"].get("dateTime", original["start"]
-                                         .get("date", "00:00"))[11:16]
+    if not new_time:
+        new_time = original["start"].get("dateTime", original["start"].get("date", "00:00"))[11:16]
 
-
-    # Crear el duplicado copiando directamente los datos
-    nuevo = create_event(
+    result_package = create_event(
         service=service,
-        name=original.get("summary", "(sin título)"),
+        summary=original.get("summary", "(sin título)"),
         start_date=new_date,
         start_time=new_time,
         description=original.get("description", ""),
         location=original.get("location", ""),
-        color_id=original.get("colorId", "1"),
+        colorId=original.get("colorId", "1"),
         attendees=[a["email"] for a in original.get("attendees", [])],
         recurrence=original.get("recurrence"),
         attachments=original.get("attachments"),
@@ -308,5 +332,101 @@ def duplicate_event(
         calendar_id=calendar_id
     )
 
-    print(f"Evento duplicado: {nuevo.get('htmlLink')}")
-    return nuevo
+    if result_package.get("undo_info"):
+        result_package["response"] = f"He duplicado el evento “{summary}” correctamente en la fecha {new_date}."
+    
+    return result_package
+
+
+# ----------------------------------------------------------------------
+# FUNCIONES DE "DESHACER"
+# ----------------------------------------------------------------------
+def _clean_body_for_restore(body: Dict[str, Any]) -> Dict[str, Any]:
+    if not body:
+        return {}
+    
+    read_only_fields = [
+        'id', 'status', 'htmlLink', 'created', 'updated', 'creator', 
+        'organizer', 'iCalUID', 'sequence', 'etag', 'eventType'
+    ]
+    
+    clean_body = body.copy()
+    for field in read_only_fields:
+        clean_body.pop(field, None)
+    
+    if 'reminders' in clean_body and 'useDefault' in clean_body['reminders']:
+        if not clean_body['reminders'].get('overrides'):
+             clean_body.pop('reminders')
+
+    return clean_body
+
+
+def undo_last_action(action_to_undo: UndoableAction, service=svc):
+    if not action_to_undo:
+        return {
+            "response": "No hay ninguna acción reciente que deshacer.",
+            "undo_info": None
+        }
+
+    operation = action_to_undo['operation'] 
+    event_id = action_to_undo['eventId']
+    calendar_id = action_to_undo['calendarId']
+
+    try:    
+        if operation == "create_event": 
+            service.events().delete(
+                calendarId=calendar_id,
+                eventId=event_id
+            ).execute()
+            message = "Acción deshecha: El evento que se creó ha sido eliminado."
+
+        elif operation == "delete_event":
+            body_to_restore = _clean_body_for_restore(action_to_undo['previous_body'])
+            service.events().insert(
+                calendarId=calendar_id,
+                body=body_to_restore
+            ).execute()
+            summary = body_to_restore.get('summary', event_id)
+            message = f"Acción deshecha: El evento '{summary}' ha sido restaurado."
+
+        elif operation == "patch_event":
+            body_to_restore = _clean_body_for_restore(action_to_undo['previous_body'])
+            service.events().update(
+                calendarId=calendar_id,
+                eventId=event_id,
+                body=body_to_restore
+            ).execute()
+            summary = body_to_restore.get('summary', event_id)
+            message = f"Acción deshecha: El evento '{summary}' ha vuelto a su estado anterior."
+
+        return {
+            "response": message,
+            "undo_info": None 
+        }
+
+    except Exception as e:
+        return {
+            "response": f"Error al intentar deshacer la acción: {e}",
+            "undo_info": action_to_undo 
+        }
+    
+
+def find_free_slots(datetime_min=None, datetime_max=None, service=svc, calendar_id="primary"):
+
+    if not datetime_min:
+        datetime_min = datetime.now(LOCAL_TZ).isoformat()
+    
+    if not datetime_max:
+        datetime_max = (datetime.now(LOCAL_TZ) + timedelta(days=30)).isoformat()
+
+    consulta_body = {
+    'timeMin': datetime_min,
+    'timeMax': datetime_max,
+    'timeZone': 'Europe/Madrid',  # Le decimos que interprete los tiempos en esta zona
+    'items': [{'id': calendar_id}]
+    }
+
+    busy_periods_response = service.freebusy().query(body=consulta_body).execute() #llamada a la api freebusy
+
+    
+    return None

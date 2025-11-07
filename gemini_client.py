@@ -1,7 +1,6 @@
-# gemini_client.py
 from dotenv import load_dotenv
-import os
 import google.generativeai as genai
+import os
 from google.api_core.exceptions import ResourceExhausted, PermissionDenied
 
 
@@ -25,10 +24,21 @@ def generar_respuesta(prompt):
     # Crea el modelo que usarás en todo el proyecto
     try:
         model = genai.GenerativeModel("gemini-2.5-pro")
-        response = model.generate_content(prompt)
+        response = model.generate_content(prompt, stream=True)
     except (ResourceExhausted, PermissionDenied):
         model = genai.GenerativeModel("gemini-2.5-flash")
-        response = model.generate_content(prompt)
-    return response.text
+        response = model.generate_content(prompt, stream=True)
 
-print(generar_respuesta("Responde solo: OK"))
+
+    full_text = ""
+    # 1. Itera sobre el 'response_iterator' (sea el Pro o el Flash)
+    for chunk in response:
+        # 2. Imprime cada trozo en la consola (el streaming)
+        print(chunk.text, end="", flush=True)
+        # 3. Acumula el texto para el return final
+        full_text += chunk.text
+
+    return full_text # 4. Devuelve el texto completo acumulado
+
+    # return response.text
+
