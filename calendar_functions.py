@@ -411,22 +411,56 @@ def undo_last_action(action_to_undo: UndoableAction, service=svc):
         }
     
 
-def find_free_slots(datetime_min=None, datetime_max=None, service=svc, calendar_id="primary"):
+def find_free_slots(duration=None, datetime_min=None, datetime_max=None, service=svc, calendar_id="primary"):
+
+    if not duration:
+        duration = timedelta(hours=1)
 
     if not datetime_min:
-        datetime_min = datetime.now(LOCAL_TZ).isoformat()
+        datetime_min = datetime.now(LOCAL_TZ).isoformat() #string "2025-11-09T13:22:59+01:00"
     
     if not datetime_max:
         datetime_max = (datetime.now(LOCAL_TZ) + timedelta(days=30)).isoformat()
 
-    consulta_body = {
-    'timeMin': datetime_min,
-    'timeMax': datetime_max,
-    'timeZone': 'Europe/Madrid',  # Le decimos que interprete los tiempos en esta zona
-    'items': [{'id': calendar_id}]
+    datetime_max_dt = datetime.fromisoformat(datetime_max)
+
+    body = {
+        'timeMin': datetime_min, #debe recibir string
+        'timeMax': datetime_max,
+        'timeZone': 'Europe/Madrid', 
+        'items': [{'id': calendar_id}]
     }
 
-    busy_periods_response = service.freebusy().query(body=consulta_body).execute() #llamada a la api freebusy
+    busy_periods_response = service.freebusy().query(body=body).execute()
+    busy_slots = busy_periods_response.get('calendars', {}).get(calendar_id, {}).get('busy', [])
 
+    if not busy_slots:
+        return [(datetime_min, datetime_max)]
     
-    return None
+    else:
+        current_time = datetime.fromisoformat(datetime_min)
+        free_slots = []
+
+        for busy_slot in busy_slots:
+            busy_start = datetime.fromisoformat(busy_slot['start'])
+            busy_end = datetime.fromisoformat(busy_slot['end'])
+
+            gap = busy_start - current_time
+
+            if gap >= duration:
+                free_slots.append({
+                    "start": current_time.isoformat(),
+                    "end": busy_start.isoformat()
+                })
+
+
+            current_time = busy_end  # mantiene el tipo datetime
+
+        # comprobar hueco final
+        if datetime_max_dt - current_time >= duration:
+            free_slots.append({
+                "start": current_time.isoformat(),
+                "end": datetime_max_dt.isoformat()
+            })
+
+    return free_slots

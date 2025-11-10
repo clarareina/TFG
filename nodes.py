@@ -230,10 +230,89 @@ def verification_node(state: AgentState) -> dict:
         return {"verification_result": result, "pending_action": action}
 
 
-def report_conflict_node(state: AgentState) -> dict:
-    """Genera el mensaje de conflicto."""
-    msg = "Conflicto detectado: ya tienes otro evento programado a esa hora. No se ha agendado la nueva cita."
-    return {"api_response_list": [msg]}
+def propose_node(state:AgentState) -> dict:
+    """
+    Tras un conflicto, llama a find_free_slots y propone alternativas.
+    """
+    pending_actions = state.get("pending_action")
+    
+    parameters = pending_actions.get("parameters", {})
+    summary = parameters.get("summary")
+    start_date_str = parameters.get("start_date") #string YYYY-MM-DD
+    start_time_str = parameters.get("start_time")
+    end_date_str = parameters.get("end_date")
+    end_time_str = parameters.get("end_time")
+    duration_minutes = 60 # Valor por defecto si falla el cálculo
+
+    if start_date_str and start_time_str and end_date_str and end_time_str: # Evento con inicio y fin
+        start_dt = datetime.strptime(f"{start_date_str} {start_time_str}", "%Y-%m-%d %H:%M")
+        end_dt = datetime.strptime(f"{end_date_str} {end_time_str}", "%Y-%m-%d %H:%M")
+        duration_delta = end_dt - start_dt
+        duration_minutes = int(duration_delta.total_seconds() / 60)
+    
+    elif start_date_str and start_time_str and not end_date_str and not end_time_str: # Evento con inicio (1h por defecto)
+        start_dt = datetime.strptime(f"{start_date_str} {start_time_str}", "%Y-%m-%d %H:%M")
+        end_dt = start_dt + timedelta(hours=1)
+        #duracion 60 min
+    
+    elif start_date_str and not start_time_str and not end_date_str and not end_time_str: #Evento con fecha inicio (Todo el dia)
+        start_dt = datetime.strptime(f"{start_date_str}", "%Y-%m-%d")
+        end_dt = start_dt + timedelta(days=1)
+        duration_minutes = 1440
+    
+    
+    # # Aseguramos una duración mínima
+    # if duration_minutes <= 0:
+    #     duration_minutes = 60
+
+    duration = timedelta(minutes=duration_minutes)
+    free_slots = calendar_functions.find_free_slots(duration=duration, datetime_min=start_dt.replace(tzinfo=LOCAL_TZ).isoformat())
+
+    if not free_slots:
+        msg = f"Conflicto detectado para '{summary}'. No he encontrado huecos libres cercanos. ¿Quieres 'forzar' el evento o 'cancelar'?"
+        return {"api_response_list": [msg], "suggested_slots": []}
+    else:
+        suggestions = []
+        for gap in free_slots:
+            if len(suggestions) >= 5:
+                break
+            current_time = datetime.fromisoformat(gap['start'])
+            gap_end = datetime.fromisoformat(gap['end'])
+
+            while ((current_time + duration) <= gap_end):
+                if len(suggestions) >= 5:
+                    break
+                slot_end = current_time + duration
+                print("current_time.hour:", current_time.hour)
+                print("slot_end.hour:", slot_end.hour)
+                if ((8 <= current_time.hour < 20) and (8 <= slot_end.hour <= 20)):
+                    suggestions.append({
+                        "start": current_time.isoformat(),
+                        "end": slot_end.isoformat()
+                    })
+                current_time = slot_end
+                
+        print('3')
+    
+        if not suggestions:
+            msg = f"Conflicto detectado para '{summary}'. He encontrado huecos, pero ninguno es suficientemente largo para los {duration_minutes} min. ¿Quieres 'forzar' o 'cancelar'?"
+            return {"api_response_list": [msg], "suggested_slots": []}
+        else:
+            msg = f"Conflicto detectado para '{summary}'. Ya hay un evento. He encontrado estos huecos alternativos:\n"
+
+            for i, slot in enumerate(suggestions):
+                friendly_time = (
+                    f"{datetime.fromisoformat(slot['start']).strftime('%Y-%m-%d')} de {datetime.fromisoformat(slot['start']).strftime('%H:%M')} "
+                    f"a {datetime.fromisoformat(slot['end']).strftime('%H:%M')}")
+                msg += f"  {i+1}. {friendly_time}\n"
+
+            msg += "Elige el número de la opción, 'forzar' (para añadirlo igualmente) o 'cancelar'."
+            return {"api_response_list": [msg], "suggested_slots": suggestions} 
+
+
+
+
+
 
 
 # ----------------------------------------------------------------------
@@ -244,7 +323,7 @@ workflow = StateGraph(AgentState)
 workflow.add_node("interpreter", interpret_command_node)
 workflow.add_node("verifier", verification_node) 
 workflow.add_node("executor", execute_calendar_node)
-workflow.add_node("reporter", report_conflict_node) 
+workflow.add_node("proposer", propose_node) 
 workflow.add_node("confirmer", confirmation_node)
 
 def decide_next_step(state: AgentState):
@@ -259,12 +338,12 @@ workflow.set_entry_point("interpreter")
 workflow.add_edge("interpreter", "verifier")
 workflow.add_conditional_edges("verifier", decide_next_step,
     {
-        "report_conflict": "reporter",
+        "report_conflict": "proposer",
         "continue_execution": "executor"
     }
 )
 workflow.add_edge("executor", "confirmer")
-workflow.add_edge("reporter", "confirmer")
+workflow.add_edge("proposer", "confirmer")
 workflow.add_edge("confirmer", "__end__")
 
 conn = sqlite3.connect("checkpoints.db", check_same_thread=False)
