@@ -259,7 +259,6 @@ def patch_event(summary, start_date=None, changes=None, service=svc):
         except (ValueError, TypeError):
             print(f"[patch_event] Error parseando end: {naive_dt_str}")
             pass # Dejar que la API falle si el formato es incorrecto
-    # --- FIN CORRECCIÓN DE ZONA HORARIA ---
 
     try:
         event_before_patch = service.events().get(

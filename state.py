@@ -35,5 +35,7 @@ class AgentState(TypedDict):
     verification_result: Optional[VerificationResult] # Resultado de la comprobación
     pending_action: Optional[Dict[str, Any]]   # Almacena la acción que causó el conflicto
     suggested_slots: Optional[List[Dict[str, str]]]  # Almacena las sugerencias (ej. [{'start': ..., 'end': ...}])
+    user_choice: Optional[str]
+    routing_decision: Optional[str]
 
 

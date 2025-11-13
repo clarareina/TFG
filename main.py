@@ -1,7 +1,7 @@
 from flow import run_agent
 
 if __name__ == "__main__":
-    print("Escribe una instrucción (o 'salir' para terminar):\n")
+    print("Escribe una instrucción (o 'salir' para terminar):")
 
     while True:
         user_input = input("> ").strip()

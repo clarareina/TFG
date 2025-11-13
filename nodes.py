@@ -10,6 +10,7 @@ from state import AgentState, VerificationResult
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo 
 import sqlite3, atexit
+import time
 
 # ----------------------------------------------------------------------
 # FUNCIONES AUXILIARES 
@@ -95,7 +96,6 @@ def execute_calendar_node(state: AgentState) -> dict:
                 execution_results.append(f"Error: {e}")
         else:
             execution_results.append(f"Error: función {function_name} no encontrada.")
-
     return {
         "api_response_list": execution_results,
         "last_undoable_action": current_undo_state
@@ -230,6 +230,7 @@ def verification_node(state: AgentState) -> dict:
         return {"verification_result": result, "pending_action": action}
 
 
+
 def propose_node(state:AgentState) -> dict:
     """
     Tras un conflicto, llama a find_free_slots y propone alternativas.
@@ -283,8 +284,6 @@ def propose_node(state:AgentState) -> dict:
                 if len(suggestions) >= 5:
                     break
                 slot_end = current_time + duration
-                print("current_time.hour:", current_time.hour)
-                print("slot_end.hour:", slot_end.hour)
                 if ((8 <= current_time.hour < 20) and (8 <= slot_end.hour <= 20)):
                     suggestions.append({
                         "start": current_time.isoformat(),
@@ -292,7 +291,6 @@ def propose_node(state:AgentState) -> dict:
                     })
                 current_time = slot_end
                 
-        print('3')
     
         if not suggestions:
             msg = f"Conflicto detectado para '{summary}'. He encontrado huecos, pero ninguno es suficientemente largo para los {duration_minutes} min. ¿Quieres 'forzar' o 'cancelar'?"
@@ -311,7 +309,60 @@ def propose_node(state:AgentState) -> dict:
 
 
 
+#nodo de espera
+def get_user_decision(state: AgentState) -> dict:
+    """
+    Imprime la propuesta Y LUEGO pausa el flujo.
+    """    
+    messages = state.get("api_response_list", [])
+    if messages:
+        print("\n" + messages[0]) 
+    
+    user_input = input("> ").strip().lower()
+    state["user_choice"] = user_input
+    
+    return state
 
+def process_user_decision(state: AgentState) -> dict:
+    user_choice = state.get("user_choice", '').lower()
+    suggested_slots = state.get("suggested_slots", [])
+    pending_action = state.get("pending_action")
+
+    if user_choice == "forzar":
+        state['routing_decision'] = 'execute' 
+        state['verification_result'] = VerificationResult(conflict_found=False)
+   
+    elif user_choice == "cancelar":
+        state['api_response_list'] = ["Acción cancelada"]
+        state['pending_action'] = None
+        state['routing_decision'] = 'end'
+        state['verification_result'] = VerificationResult(conflict_found=False)
+
+    elif user_choice.isdigit():
+        index = int(user_choice) - 1    # user_choice = "1" → int("1") pero se usa suggested_slots[0]
+        if 0 <= index < len(suggested_slots):
+            chosen_slot = suggested_slots[index]
+            # Actualizar fechas en la acción pendiente
+            start_dt = datetime.fromisoformat(chosen_slot["start"])
+            end_dt = datetime.fromisoformat(chosen_slot["end"])
+
+            parameters = pending_action.get("parameters", {})
+            parameters["start_date"] = start_dt.strftime("%Y-%m-%d")
+            parameters["start_time"] = start_dt.strftime("%H:%M")
+            parameters["end_date"] = end_dt.strftime("%Y-%m-%d")
+            parameters["end_time"] = end_dt.strftime("%H:%M")
+            pending_action["parameters"] = parameters
+
+            state['pending_action'] = pending_action
+            state['routing_decision'] = 'execute'
+            state['verification_result'] = VerificationResult(conflict_found=False)
+
+        else:
+            state['api_response_list'] = ['Opción inválida']
+            state['routing_decision'] = 'invalid_choice'
+    else:
+        state['routing_decision'] = 'invalid_choice'
+    return state
 
 
 
@@ -325,6 +376,9 @@ workflow.add_node("verifier", verification_node)
 workflow.add_node("executor", execute_calendar_node)
 workflow.add_node("proposer", propose_node) 
 workflow.add_node("confirmer", confirmation_node)
+workflow.add_node("get_user_decision", get_user_decision)
+workflow.add_node("process_user_decision", process_user_decision)
+
 
 def decide_next_step(state: AgentState):
     verification = state.get("verification_result")
@@ -334,7 +388,8 @@ def decide_next_step(state: AgentState):
         # Si verification_result está vacío (porque no se verificó) o no hay conflicto
         return "continue_execution"
     
-workflow.set_entry_point("interpreter")
+workflow.set_entry_point("interpreter") # define el nodo inicial del flujo
+
 workflow.add_edge("interpreter", "verifier")
 workflow.add_conditional_edges("verifier", decide_next_step,
     {
@@ -342,8 +397,17 @@ workflow.add_conditional_edges("verifier", decide_next_step,
         "continue_execution": "executor"
     }
 )
+workflow.add_edge("proposer", "get_user_decision")
+workflow.add_edge("get_user_decision", "process_user_decision")
+workflow.add_conditional_edges("process_user_decision",
+    lambda state: state.get("routing_decision"),
+    {
+        "execute": "executor",
+        "end": "confirmer",
+        "invalid_choice": "get_user_decision"
+    }
+)
 workflow.add_edge("executor", "confirmer")
-workflow.add_edge("proposer", "confirmer")
 workflow.add_edge("confirmer", "__end__")
 
 conn = sqlite3.connect("checkpoints.db", check_same_thread=False)
