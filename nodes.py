@@ -51,16 +51,15 @@ FUNCTION_MAP = {
 # NODOS
 # ----------------------------------------------------------------------
 
-RoutingDecision = Literal["tool_use", "reasoning"] 
-
+RoutingDecision = Literal["tool_use", "reasoning", "chat"] 
 def router_node(state: AgentState) -> dict:
     """
     Clasifica la intención del usuario.
     """
-    try:
-        raw_msg = state['messages'][-1].content
-    except:
-        raw_msg = state.get('input_user', '')
+    # try:
+    raw_msg = state['input_user']
+    # except:
+    #     raw_msg = state.get('input_user', '')
     
     message = raw_msg.lower().strip()
 
@@ -78,17 +77,18 @@ def router_node(state: AgentState) -> dict:
         return {"routing_decision": "reasoning"}
     
     
+    
     classification_prompt = f"""
     Eres un enrutador de sistema ciego. Clasifica el texto.
 
     CATEGORÍAS:
     1. tool_use: Acciones (crear, borrar, modificar, deshacer). REGLA DE ORO: Ante la duda de una acción, usa esta.
     2. reasoning: Consultas, análisis, búsquedas.
-    
-
+    3. chat: SOLO para saludos ("Hola"), despedidas ("Adiós", "Gracias"), o temas que NO tienen nada que ver con el calendario (chistes, el tiempo, política).
+   
     Petición: "{raw_msg}" # Usamos el mensaje original con mayúsculas para el LLM
     
-    Responde SOLO: tool_use o reasoning.
+    Responde SOLO: tool_use, reasoning o chat.
     """
     
     response_obj = generar_respuesta(classification_prompt)
@@ -98,8 +98,10 @@ def router_node(state: AgentState) -> dict:
         return {"routing_decision": "tool_use"}
     elif "reason" in decision:
         return {"routing_decision": "reasoning"}
+    elif "chat" in decision:
+        return {"routing_decision": "chat"}
     
-    return {"routing_decision": "reasoning"}
+    return {"routing_decision": "chat"}
 
 
 def tool_interpreter(state: dict) -> dict:
@@ -583,6 +585,7 @@ workflow.add_conditional_edges("process_user_decision",
 workflow.add_edge("tool_executor", "confirmer")
 workflow.add_edge("reasoning_executor", "analysis")
 workflow.add_edge("analysis", "confirmer") 
+workflow.add_edge("chat", "confirmer") 
 workflow.add_edge("confirmer", "__end__")
 
 conn = sqlite3.connect("checkpoints.db", check_same_thread=False)
