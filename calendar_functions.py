@@ -185,12 +185,16 @@ def get_events(summary=None, start_date=None, end_date=None, calendar_id="primar
         start_date = datetime.now(LOCAL_TZ).isoformat()
     elif len(start_date) == 10:
         start_date = datetime.fromisoformat(start_date).replace(tzinfo=LOCAL_TZ).isoformat()
+    
+
 
     if not end_date:
         end_date = (datetime.now(LOCAL_TZ) + timedelta(days=30)).isoformat()
     elif len(end_date) == 10:
-        end_date = datetime.fromisoformat(end_date).replace(tzinfo=LOCAL_TZ).isoformat()
+        dt_end = datetime.fromisoformat(end_date)
+        end_date = dt_end.replace(hour=23, minute=59, second=59, tzinfo=LOCAL_TZ).isoformat()
         
+
     query = {"calendarId": calendar_id, "timeMin": start_date, "timeMax": end_date,
              "maxResults": max, "singleEvents": True, "orderBy": "startTime"}
     if summary:
@@ -446,6 +450,10 @@ def find_free_slots(duration=None, datetime_min=None, datetime_max=None, service
 
             gap = busy_start - current_time
 
+            # Si el hueco empieza antes de AHORA MISMO, lo saltamos
+            if current_time < datetime.now(LOCAL_TZ):
+                current_time = datetime.now(LOCAL_TZ)
+                                            
             if gap >= duration:
                 free_slots.append({
                     "start": current_time.isoformat(),
@@ -463,3 +471,5 @@ def find_free_slots(duration=None, datetime_min=None, datetime_max=None, service
             })
 
     return free_slots
+
+

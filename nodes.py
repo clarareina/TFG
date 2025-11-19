@@ -1,7 +1,7 @@
 import json
 import re
 from typing import TypedDict, Optional, List, Dict, Any, Literal
-from prompt import prompt as gemini_prompt_template
+from prompts import tool_prompt, reasoning_prompt, analysis_prompt
 from gemini_client import generar_respuesta
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import StateGraph
@@ -51,10 +51,61 @@ FUNCTION_MAP = {
 # NODOS
 # ----------------------------------------------------------------------
 
-def interpret_command_node(state: dict) -> dict:
+RoutingDecision = Literal["tool_use", "reasoning"] 
+
+def router_node(state: AgentState) -> dict:
+    """
+    Clasifica la intención del usuario.
+    """
+    try:
+        raw_msg = state['messages'][-1].content
+    except:
+        raw_msg = state.get('input_user', '')
+    
+    message = raw_msg.lower().strip()
+
+    
+    strong_tool_keywords = [
+        "crea", "borra", "elimina", "agenda", "pon ", "quita", "modifica", 
+        "cambia", "duplica", "cancela", "reunión", "deshaz", "revierte", "muestra", "lista"]
+    
+    if any(w in message for w in strong_tool_keywords):
+        print(f"[Router] (Tool)")
+        return {"routing_decision": "tool_use"}
+    
+    if any(w in message for w in ["busca", "crees", "idea", "encuentra", "tardar", "hueco", "tengo", "resum", "dime", "cuanto", "cuánto", "estima"]):
+        print(f"[Router] (Reasoning)")
+        return {"routing_decision": "reasoning"}
+    
+    
+    classification_prompt = f"""
+    Eres un enrutador de sistema ciego. Clasifica el texto.
+
+    CATEGORÍAS:
+    1. tool_use: Acciones (crear, borrar, modificar, deshacer). REGLA DE ORO: Ante la duda de una acción, usa esta.
+    2. reasoning: Consultas, análisis, búsquedas.
+    
+
+    Petición: "{raw_msg}" # Usamos el mensaje original con mayúsculas para el LLM
+    
+    Responde SOLO: tool_use o reasoning.
+    """
+    
+    response_obj = generar_respuesta(classification_prompt)
+    decision = response_obj.content.strip().lower() if hasattr(response_obj, 'content') else str(response_obj).strip().lower()
+    
+    if "tool" in decision:
+        return {"routing_decision": "tool_use"}
+    elif "reason" in decision:
+        return {"routing_decision": "reasoning"}
+    
+    return {"routing_decision": "reasoning"}
+
+
+def tool_interpreter(state: dict) -> dict:
     """Envía el prompt al modelo Gemini y devuelve la estructura JSON de acciones."""
     user_input = state['input_user']
-    prompt_final = f"{gemini_prompt_template}\n\nUsuario: {user_input}\n"
+    prompt_final = f"{tool_prompt()}\n\nUsuario: {user_input}\n"
     response_text = generar_respuesta(prompt_final)
     json_object = interpret_response_json(response_text)
 
@@ -67,7 +118,27 @@ def interpret_command_node(state: dict) -> dict:
     return {"structured_json_list": actions_to_execute}
 
 
-def execute_calendar_node(state: AgentState) -> dict:
+def reasoning_interpreter(state: dict) -> dict:
+    """Envía el prompt al modelo Gemini y devuelve la estructura JSON de acciones."""
+    user_input = state['input_user']
+    prompt_final = f"{reasoning_prompt()}\n\nUsuario: {user_input}\n"
+    response_text = generar_respuesta(prompt_final)
+    json_object = interpret_response_json(response_text)
+
+    actions_to_execute = []
+    if isinstance(json_object, list):
+        actions_to_execute = json_object
+    elif isinstance(json_object, dict):
+        actions_to_execute.append(json_object)
+                
+    return {
+        "structured_json_list": actions_to_execute,
+        "api_response_list": [] 
+    }
+
+
+
+def tool_executor(state: AgentState) -> dict:
     """Ejecuta las acciones indicadas en el JSON interpretado."""
     action_list = state.get('structured_json_list', [])
     current_undo_state = state.get('last_undoable_action')
@@ -101,7 +172,66 @@ def execute_calendar_node(state: AgentState) -> dict:
         "last_undoable_action": current_undo_state
     }
 
+def reasoning_executor(state: dict) -> dict:
+    """
+    Ejecuta herramientas de LECTURA (Reasoning).
+    Mapea los parámetros JSON a los tipos de datos exactos que piden las funciones Python.
+    """
+    action_list = state.get('structured_json_list', [])
+    execution_results = []
 
+    for action in action_list:
+        function_name = action.get("function")
+        parameters = action.get("parameters", {})
+
+        try:
+            if function_name == "find_free_slots":
+                mins = parameters.get("duration", 60)
+                duration_td = timedelta(minutes=int(mins))
+
+                start_date = parameters.get("start_date")
+                start_time = parameters.get("start_time", "00:00")
+                
+                # Si no hay fecha fin, asumimos el mismo día
+                end_date = parameters.get("end_date", start_date) 
+                end_time = parameters.get("end_time", "23:59")
+
+                start_dt_str = f"{start_date} {start_time}"
+                end_dt_str = f"{end_date} {end_time}"
+                
+                dt_min = datetime.strptime(start_dt_str, "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ).isoformat()
+                dt_max = datetime.strptime(end_dt_str, "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ).isoformat()
+
+                result = calendar_functions.find_free_slots(
+                    duration=duration_td,
+                    datetime_min=dt_min,
+                    datetime_max=dt_max
+                )
+                execution_results.append(result)
+
+            # CASO 2: OBTENER EVENTOS
+            elif function_name == "get_events":
+                # Llamamos directamente (asumiendo que get_events maneja sus params)
+                result = calendar_functions.get_events(**parameters)
+                execution_results.append(result)
+
+            # CASO 3: ESTIMAR DURACIÓN
+            elif function_name == "estimate_duration":
+                # No hay función Python real, pasamos el contexto al análisis
+                execution_results.append(parameters)
+
+            else:
+                execution_results.append(f"Error: Función de razonamiento '{function_name}' no reconocida.")
+
+        except Exception as e:
+            print(f"Error ejecutando {function_name}: {e}")
+            execution_results.append(f"Error al obtener datos: {str(e)}")
+
+    return {
+        "api_response_list": execution_results
+    }
+
+    
 def confirmation_node(state: dict) -> dict:
     """Devuelve la respuesta final al usuario."""
     results = state.get("api_response_list", [])
@@ -110,9 +240,6 @@ def confirmation_node(state: dict) -> dict:
     return {"final_response": results[0]} 
 
 
-# ----------------------------------------------------------------------
-# VERIFICATION NODE 
-# ----------------------------------------------------------------------
 
 LOCAL_TZ = ZoneInfo("Europe/Madrid")
 
@@ -365,19 +492,54 @@ def process_user_decision(state: AgentState) -> dict:
     return state
 
 
+def analysis_node(state: dict) -> dict:
+    actions = state.get("structured_json_list", [])
+    if not actions:
+        return {"api_response_list": ["Error: No se encontró el contexto de la acción."]}
+    function_name = actions[0].get('function')
+    raw_data_str = str(state.get('api_response_list', []))
+    user_query = state.get('input_user', '')  
+
+    prompt_final = analysis_prompt(function_name, raw_data_str, user_query)
+    response_text = generar_respuesta(prompt_final).strip()
+    return {"api_response_list": [response_text]}
+
+
+def chat_node(state: dict) -> dict:
+    user_input = state['input_user']    
+    prompt = """
+    Eres un asistente inteligente especializado en la gestión de Google Calendar.
+    Tu objetivo en esta fase es conversar de forma amable, breve y servicial con el usuario.
+
+    Reglas:
+    1. Mantén un tono profesional pero cercano.
+    2. Tus respuestas deben ser concisas (máximo 2 frases salvo que sea necesario más).
+    3. Si el usuario te pregunta sobre temas que no tienen nada que ver con agenda, tiempo o productividad, recuérdale amablemente que tu especialidad es el calendario.
+    4. NO generes JSON ni código. Solo texto plano.
+    """
+    final_prompt = f"{prompt}\n\nUsuario: {user_input}"
+    response = generar_respuesta(final_prompt).strip()
+    return {"api_response_list": [response]}
+
 
 # ----------------------------------------------------------------------
 # MONTAJE DEL GRAFO
 # ----------------------------------------------------------------------
 
 workflow = StateGraph(AgentState)
-workflow.add_node("interpreter", interpret_command_node)
+workflow.add_node("router", router_node)
+workflow.add_node("tool_interpreter", tool_interpreter)
+workflow.add_node("reasoning_interpreter", reasoning_interpreter)
 workflow.add_node("verifier", verification_node) 
-workflow.add_node("executor", execute_calendar_node)
+workflow.add_node("tool_executor", tool_executor)
+workflow.add_node("reasoning_executor", reasoning_executor)
 workflow.add_node("proposer", propose_node) 
 workflow.add_node("confirmer", confirmation_node)
 workflow.add_node("get_user_decision", get_user_decision)
 workflow.add_node("process_user_decision", process_user_decision)
+workflow.add_node("analysis", analysis_node)
+workflow.add_node("chat", chat_node)
+
 
 
 def decide_next_step(state: AgentState):
@@ -388,13 +550,24 @@ def decide_next_step(state: AgentState):
         # Si verification_result está vacío (porque no se verificó) o no hay conflicto
         return "continue_execution"
     
-workflow.set_entry_point("interpreter") # define el nodo inicial del flujo
+workflow.set_entry_point("router") # define el nodo inicial del flujo
 
-workflow.add_edge("interpreter", "verifier")
+workflow.add_conditional_edges(
+    "router",
+    lambda state: state.get("routing_decision"),
+    {
+        "tool_use": "tool_interpreter",
+        "reasoning": "reasoning_interpreter",
+        "chat": "chat"
+    }
+)
+
+workflow.add_edge("tool_interpreter", "verifier")
+workflow.add_edge("reasoning_interpreter", "reasoning_executor")
 workflow.add_conditional_edges("verifier", decide_next_step,
     {
         "report_conflict": "proposer",
-        "continue_execution": "executor"
+        "continue_execution": "tool_executor"
     }
 )
 workflow.add_edge("proposer", "get_user_decision")
@@ -402,12 +575,14 @@ workflow.add_edge("get_user_decision", "process_user_decision")
 workflow.add_conditional_edges("process_user_decision",
     lambda state: state.get("routing_decision"),
     {
-        "execute": "executor",
+        "execute": "tool_executor",
         "end": "confirmer",
         "invalid_choice": "get_user_decision"
     }
 )
-workflow.add_edge("executor", "confirmer")
+workflow.add_edge("tool_executor", "confirmer")
+workflow.add_edge("reasoning_executor", "analysis")
+workflow.add_edge("analysis", "confirmer") 
 workflow.add_edge("confirmer", "__end__")
 
 conn = sqlite3.connect("checkpoints.db", check_same_thread=False)
