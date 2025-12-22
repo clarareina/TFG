@@ -1,0 +1,137 @@
+/* src/App.css */
+:root {
+  --fondo-gris: #f3f4f6;
+  --blanco-tarjeta: #ffffff;
+  --separacion: 20px;
+}
+
+body,
+html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  /* Evita que salga barra de scroll en la ventana */
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+#root {
+  height: 100%;
+}
+
+.layout-dashboard {
+  display: grid;
+  height: 100vh;
+  /* Resta los márgenes (10px arriba + 10px abajo) */
+  width: 100%;
+  grid-template-columns: 425px 1fr 375px;
+  padding: var(--separacion);
+  margin: 10px 0;
+  gap: var(--separacion);
+  box-sizing: border-box;
+  background-color: var(--fondo-gris);
+}
+
+.card {
+  background-color: var(--blanco-tarjeta);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.right-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--separacion);
+  height: 100%;
+}
+
+.box-half {
+  flex: 1;
+  /* Ocupa la mitad del espacio vertical */
+  min-height: 0;
+}
+
+
+/* --- ESTILOS DEL CHAT --- */
+
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  /* Importante para que no se rompa */
+}
+
+.messages-area {
+  flex: 1;
+  /* Ocupa todo el espacio disponible */
+  overflow-y: auto;
+  /* Scroll si hay muchos mensajes */
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* BURBUJAS */
+.message-bubble {
+  max-width: 80%;
+  padding: 10px 15px;
+  border-radius: 15px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.message-bubble.user {
+  align-self: flex-end;
+  /* A la derecha */
+  background-color: #2563eb;
+  /* Azul */
+  color: white;
+  border-bottom-right-radius: 2px;
+}
+
+.message-bubble.bot {
+  align-self: flex-start;
+  /* A la izquierda */
+  background-color: #e5e7eb;
+  /* Gris */
+  color: #1f2937;
+  border-bottom-left-radius: 2px;
+}
+
+/* INPUT CÁPSULA */
+.input-wrapper {
+  display: flex;
+  align-items: center;
+  background-color: #f3f4f6;
+  border-radius: 25px;
+  padding: 5px 5px 5px 15px;
+  margin-top: 10px;
+}
+
+.input-wrapper input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 0.95rem;
+}
+
+.input-wrapper button {
+  background-color: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 35px;
+  height: 35px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+}

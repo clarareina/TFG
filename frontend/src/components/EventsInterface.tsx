@@ -1,0 +1,134 @@
+import { useEffect, useState } from 'react'
+
+interface CalendarEvent {
+    id: string
+    summary: string
+    start: { dateTime?: string; date?: string }
+    end: { dateTime?: string; date?: string }
+    colorId?: string
+}
+
+const UpcomingEvents = () => {
+    const [events, setEvents] = useState<CalendarEvent[]>([])
+    const [isLoading, setIsLoading] = useState(true)
+
+    // Mapa de colores de Google Calendar
+    const googleColors: { [key: string]: string } = {
+        '1': '#7986CB', '2': '#33B679', '3': '#8E24AA', '4': '#E67C73',
+        '5': '#F6BF26', '6': '#F4511E', '7': '#039BE5', '8': '#616161',
+        '9': '#3F51B5', '10': '#0B8043', '11': '#D50000',
+    }
+
+    const fetchEvents = () => {
+        setIsLoading(true)
+        fetch('http://localhost:8000/api/calendar/events')
+            .then(res => res.json())
+            .then((data: CalendarEvent[]) => {
+                const now = new Date()
+                const startOfWeek = new Date(now)
+                startOfWeek.setDate(now.getDate() - now.getDay() + 1) // Lunes
+                startOfWeek.setHours(0, 0, 0, 0)
+
+                const endOfWeek = new Date(startOfWeek)
+                endOfWeek.setDate(startOfWeek.getDate() + 6) // Domingo
+                endOfWeek.setHours(23, 59, 59, 999)
+
+                // Filtrar eventos de esta semana y futuros
+                const weekEvents = data.filter(evt => {
+                    const eventStart = new Date(evt.start.dateTime || evt.start.date || '')
+                    return eventStart >= now && eventStart <= endOfWeek
+                })
+
+                // Ordenar por fecha
+                weekEvents.sort((a, b) => {
+                    const dateA = new Date(a.start.dateTime || a.start.date || '')
+                    const dateB = new Date(b.start.dateTime || b.start.date || '')
+                    return dateA.getTime() - dateB.getTime()
+                })
+
+                setEvents(weekEvents)
+            })
+            .catch(() => { })
+            .finally(() => setIsLoading(false))
+    }
+
+    useEffect(() => {
+        // Cargar eventos al montar
+        fetchEvents()
+
+        // Escuchar cuando el chat hace cambios en el calendario
+        const handleCalendarUpdate = () => {
+            console.log('[UpcomingEvents] Actualizando eventos...')
+            fetchEvents()
+        }
+
+        window.addEventListener('calendarUpdated', handleCalendarUpdate)
+
+        return () => {
+            window.removeEventListener('calendarUpdated', handleCalendarUpdate)
+        }
+    }, [])
+
+    const formatDate = (evt: CalendarEvent) => {
+        const date = new Date(evt.start.dateTime || evt.start.date || '')
+        const options: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short' }
+        const dateStr = date.toLocaleDateString('es-ES', options)
+
+        if (evt.start.dateTime) {
+            const timeStr = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+            return `${dateStr} · ${timeStr}`
+        }
+        return `${dateStr} · Todo el día`
+    }
+
+    const getColor = (colorId?: string) => {
+        return colorId ? (googleColors[colorId] || '#039BE5') : '#039BE5'
+    }
+
+    return (
+        <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            overflowY: 'auto',
+            height: '100%',
+            minHeight: 0
+        }}>
+            {isLoading ? (
+                <p style={{ color: '#9CA3AF', textAlign: 'center', marginTop: '20px' }}>
+                    Cargando eventos...
+                </p>
+            ) : events.length === 0 ? (
+                <p style={{ color: '#888', textAlign: 'center', marginTop: '20px' }}>
+                    No hay eventos esta semana
+                </p>
+            ) : (
+                events.map((evt, index) => (
+                    <div
+                        key={evt.id || index}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            padding: '10px 12px',
+                            backgroundColor: '#f9fafb',
+                            borderRadius: '10px',
+                            borderLeft: `4px solid ${getColor(evt.colorId)}`,
+                        }}
+                    >
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1f2937' }}>
+                                {evt.summary || 'Sin título'}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>
+                                {formatDate(evt)}
+                            </div>
+                        </div>
+                    </div>
+                ))
+            )}
+        </div>
+    )
+}
+
+export default UpcomingEvents

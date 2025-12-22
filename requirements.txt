@@ -14,3 +14,8 @@ langgraph-checkpoint-sqlite
 python-dotenv
 tinydb  # Para logs y trazabilidad
 tzlocal  # Para gestionar automáticamente la zona horaria local
+
+# Backend
+fastapi
+uvicorn[standard]
+pydantic
