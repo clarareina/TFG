@@ -8,17 +8,17 @@ const CalendarView = () => {
 
   // Mapa de colores de Google Calendar (colorId -> hex)
   const googleColors: { [key: string]: string } = {
-    '1': '#7986CB',  // Lavanda
-    '2': '#33B679',  // Salvia
-    '3': '#8E24AA',  // Uva
-    '4': '#E67C73',  // Flamenco
-    '5': '#F6BF26',  // Plátano
-    '6': '#F4511E',  // Mandarina
-    '7': '#039BE5',  // Pavo real
-    '8': '#616161',  // Grafito
-    '9': '#3F51B5',  // Arándano
-    '10': '#0B8043', // Albahaca
-    '11': '#D50000', // Tomate
+    '1': '#7986CB',  
+    '2': '#33B679',  
+    '3': '#8E24AA',  
+    '4': '#E67C73',  
+    '5': '#F6BF26',  
+    '6': '#F4511E',  
+    '7': '#039BE5',  
+    '8': '#616161',  
+    '9': '#3F51B5',  
+    '10': '#0B8043', 
+    '11': '#D50000', 
   }
 
   const fetchEvents = () => {
@@ -29,7 +29,7 @@ const CalendarView = () => {
         const formattedEvents = data.map((evt: any) => {
           // Usar el color original de Google Calendar si existe
           const colorId = evt.colorId
-          const defaultColor = '#039BE5' // Azul (Pavo real) por defecto
+          const defaultColor = '#036ce5ff' 
           const bgColor = colorId ? (googleColors[colorId] || defaultColor) : defaultColor
 
           return {
@@ -54,7 +54,6 @@ const CalendarView = () => {
       console.log('[Calendar] Actualizando eventos...')
       fetchEvents()
     }
-
     window.addEventListener('calendarUpdated', handleUpdate)
 
     return () => {

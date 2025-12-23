@@ -40,7 +40,7 @@ const ChatInterface = () => {
     const userText = input
     setInput('')
 
-    // 2. Pintamos TU mensaje inmediatamente
+    // 2. Pintamos TU mensaje 
     const userMsg: Message = { id: Date.now(), text: userText, sender: 'user' }
     setMessages(prev => [...prev, userMsg])
 
@@ -48,17 +48,15 @@ const ChatInterface = () => {
     setIsLoading(true)
 
     try {
-      // 4. LLAMADA AL BACKEND REAL (Python)
-      // Nota: Asegúrate de que tu backend corre en el puerto 8000
+      // 4. LLAMADA AL BACKEND 
       const response = await fetch('http://127.0.0.1:8000/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        // Enviamos el formato exacto que pide tu main.py (UserRequest)
         body: JSON.stringify({
           query: userText,
-          user_id: "usuario_tfg"
+          user_id: "user"
         }),
       })
 
@@ -71,7 +69,6 @@ const ChatInterface = () => {
       // 5. Pintamos la respuesta del ASISTENTE
       const botMsg: Message = {
         id: Date.now() + 1,
-        // Tu API devuelve { status: "...", response: "..." }
         text: data.response,
         sender: 'bot'
       }
@@ -85,10 +82,9 @@ const ChatInterface = () => {
 
     } catch (error) {
       console.error(error)
-      // Si falla, avisamos al usuario
       const errorMsg: Message = {
         id: Date.now() + 1,
-        text: '⚠️ Error: No puedo conectar con el servidor (Backend apagado o error de red).',
+        text: 'Error: No puedo conectar con el servidor (Backend apagado o error de red).',
         sender: 'bot'
       }
       setMessages(prev => [...prev, errorMsg])

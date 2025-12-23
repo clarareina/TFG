@@ -22,7 +22,6 @@ html {
 .layout-dashboard {
   display: grid;
   height: 100vh;
-  /* Resta los márgenes (10px arriba + 10px abajo) */
   width: 100%;
   grid-template-columns: 425px 1fr 375px;
   padding: var(--separacion);
@@ -90,7 +89,6 @@ html {
   align-self: flex-end;
   /* A la derecha */
   background-color: #2563eb;
-  /* Azul */
   color: white;
   border-bottom-right-radius: 2px;
 }
@@ -99,7 +97,6 @@ html {
   align-self: flex-start;
   /* A la izquierda */
   background-color: #e5e7eb;
-  /* Gris */
   color: #1f2937;
   border-bottom-left-radius: 2px;
 }

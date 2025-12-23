@@ -53,7 +53,6 @@ const UpcomingEvents = () => {
     }
 
     useEffect(() => {
-        // Cargar eventos al montar
         fetchEvents()
 
         // Escuchar cuando el chat hace cambios en el calendario

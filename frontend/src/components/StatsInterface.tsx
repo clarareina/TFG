@@ -74,7 +74,6 @@ const StatsInterface = () => {
             .catch(() => { })
     }
 
-    // Pedir resumen al agente
     const fetchRecommendation = async () => {
         setIsLoading(true)
         try {
@@ -102,12 +101,10 @@ const StatsInterface = () => {
 
     const requestCount = useRef(0)
     useEffect(() => {
-        // Cargar datos al montar
         calculateStats()
         fetchRecommendation()
 
         // Escuchar cuando el chat hace cambios en el calendario
-
         const handleUpdate = () => {
             console.log('[Stats] Actualizando estadísticas y recomendaciones...')
             calculateStats()
