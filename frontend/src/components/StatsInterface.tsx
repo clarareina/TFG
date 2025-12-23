@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface CalendarEvent {
     id: string
@@ -100,16 +100,21 @@ const StatsInterface = () => {
         }
     }
 
+    const requestCount = useRef(0)
     useEffect(() => {
         // Cargar datos al montar
         calculateStats()
         fetchRecommendation()
 
         // Escuchar cuando el chat hace cambios en el calendario
+
         const handleUpdate = () => {
             console.log('[Stats] Actualizando estadísticas y recomendaciones...')
             calculateStats()
-            fetchRecommendation()
+            requestCount.current += 1
+            if (requestCount.current % 5 === 0) {
+                fetchRecommendation()
+            }
         }
 
         window.addEventListener('calendarUpdated', handleUpdate)

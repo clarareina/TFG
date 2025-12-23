@@ -1,8 +1,6 @@
-// src/App.tsx
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import ChatInterface from './components/ChatInterface'
-// Asegúrate de que la ruta coincide con el nombre de tu archivo (CalendarView.tsx)
 import CalendarView from './components/CalendarInterface'
 import UpcomingEvents from './components/EventsInterface'
 import StatsInterface from './components/StatsInterface'
@@ -10,27 +8,53 @@ import StatsInterface from './components/StatsInterface'
 import { GoogleLogin } from '@react-oauth/google'
 import type { CredentialResponse } from '@react-oauth/google'
 
+const API_URL = 'http://localhost:8000'
+
 function App() {
   // 1. ESTADO: Inicializamos mirando directamente en la memoria del navegador
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     return localStorage.getItem('google_logged_in') === 'true'
   })
+  const [errorMessage, setErrorMessage] = useState<string>('')
 
-  // 2. FUNCIÓN LOGIN: Cuando Google nos da el OK
+  // 2. VERIFICAR AUTENTICACIÓN AL CARGAR (si dice que está logueado, verificar con backend)
+  useEffect(() => {
+    if (isLoggedIn) {
+      checkAuthStatus()
+    }
+  }, [])
+
+  const checkAuthStatus = async () => {
+    try {
+      const response = await fetch(`${API_URL}/auth/status/default_user`)
+      const data = await response.json()
+      if (!data.authenticated) {
+        // Backend dice que no está autenticado
+        setErrorMessage('USUARIO NO AUTENTICADO')
+        localStorage.removeItem('google_logged_in')
+        setIsLoggedIn(false)
+      }
+    } catch (error) {
+      console.error('Error verificando autenticación:', error)
+    }
+  }
+
+  // 3. FUNCIÓN LOGIN: Cuando Google nos da el OK
   const handleLoginSuccess = (credentialResponse: CredentialResponse) => {
     console.log("Login Éxito:", credentialResponse)
     // Guardamos la "marca" en el navegador para que no se olvide al recargar
     localStorage.setItem('google_logged_in', 'true')
+    setErrorMessage('')
     setIsLoggedIn(true)
   }
 
-  // 3. FUNCIÓN LOGOUT: Para poder salir y probar de nuevo
+  // 4. FUNCIÓN LOGOUT: Para poder salir y probar de nuevo
   const handleLogout = () => {
     localStorage.removeItem('google_logged_in') // Borramos la marca
     setIsLoggedIn(false) // Actualizamos la pantalla
   }
 
-  // 4. PANTALLA DE LOGIN (Si NO estamos logueados)
+  // 5. PANTALLA DE LOGIN (Si NO estamos logueados)
   if (!isLoggedIn) {
     return (
       <div style={{
@@ -40,6 +64,14 @@ function App() {
         <div className="card" style={{ maxWidth: '400px', textAlign: 'center', padding: '40px' }}>
           <h2>Bienvenido</h2>
           <p style={{ marginBottom: '20px', color: '#666' }}>Inicia sesión para continuar</p>
+
+          {/* Mensaje de error si no está autenticado */}
+          {errorMessage && (
+            <p style={{ color: '#ef4444', marginBottom: '15px', fontWeight: 'bold' }}>
+              {errorMessage}
+            </p>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <GoogleLogin
               onSuccess={handleLoginSuccess}
@@ -52,7 +84,7 @@ function App() {
     )
   }
 
-  // 5. PANTALLA PRINCIPAL (DASHBOARD) 
+  // 6. PANTALLA PRINCIPAL (DASHBOARD) 
   return (
     <div className="layout-dashboard">
 
