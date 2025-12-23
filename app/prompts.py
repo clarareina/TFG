@@ -1,8 +1,6 @@
 from datetime import datetime
-import json
 from zoneinfo import ZoneInfo
 
-# Obtener la fecha actual del sistema con zona horaria de Madrid
 zona_local = ZoneInfo("Europe/Madrid")
 fecha_actual = datetime.now(zona_local).strftime("%Y-%m-%d")
 

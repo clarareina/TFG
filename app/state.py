@@ -15,8 +15,8 @@ class VerificationResult(TypedDict):
     """
     Almacena el resultado de una comprobación de conflictos.
     """
-    conflict_found: bool                  # ¿Se ha encontrado un conflicto?
-    conflicting_events: List[Dict[str, Any]] # Lista de eventos (cuerpos) que chocan
+    conflict_found: bool                  
+    conflicting_events: List[Dict[str, Any]] # Lista de eventos que chocan
 
 class AgentState(TypedDict):
     """

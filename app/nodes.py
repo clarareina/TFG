@@ -1,26 +1,24 @@
 import json
 import re
-from typing import TypedDict, Optional, List, Dict, Any, Literal
+from typing import Literal
 from .prompts import tool_prompt, reasoning_prompt, analysis_prompt
 from .services.gemini_client import generar_respuesta
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import StateGraph
 from app import calendar_tools
 from .state import AgentState, VerificationResult
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo 
 import sqlite3, atexit
-import time
 
-# ----------------------------------------------------------------------
-# FUNCIONES AUXILIARES 
-# ----------------------------------------------------------------------
+LOCAL_TZ = ZoneInfo("Europe/Madrid")
+
 
 def clean_json(text):
     """Limpia el 'wrapper' ```json ... ``` de la respuesta de Gemini."""
     if not text:
         return ""
-    return re.sub(r"```json|```", "", text, flags=re.IGNORECASE).strip()
+    return re.sub(r"```json ```", "", text, flags=re.IGNORECASE).strip()
 
 
 def interpret_response_json(text):
@@ -33,9 +31,6 @@ def interpret_response_json(text):
         return None
 
 
-# ----------------------------------------------------------------------
-# MAPA DE FUNCIONES
-# ----------------------------------------------------------------------
 
 FUNCTION_MAP = {
     "create_event": calendar_tools.create_event,
@@ -47,19 +42,13 @@ FUNCTION_MAP = {
 }
 
 
-# ----------------------------------------------------------------------
-# NODOS
-# ----------------------------------------------------------------------
 
 RoutingDecision = Literal["tool_use", "reasoning", "chat"] 
 def router_node(state: AgentState) -> dict:
     """
     Clasifica la intención del usuario.
     """
-    # try:
     raw_msg = state['input_user']
-    # except:
-    #     raw_msg = state.get('input_user', '')
     
     message = raw_msg.lower().strip()
 
@@ -213,13 +202,12 @@ def reasoning_executor(state: dict) -> dict:
 
             # CASO 2: OBTENER EVENTOS
             elif function_name == "get_events":
-                # Llamamos directamente (asumiendo que get_events maneja sus params)
                 result = calendar_tools.get_events(**parameters)
                 execution_results.append(result)
 
             # CASO 3: ESTIMAR DURACIÓN
             elif function_name == "estimate_duration":
-                # No hay función Python real, pasamos el contexto al análisis
+                # No hay función Python, pasamos el contexto al análisis
                 execution_results.append(parameters)
 
             else:
@@ -242,7 +230,6 @@ def confirmation_node(state: dict) -> dict:
     return {"final_response": "\n".join(results)} 
 
 
-LOCAL_TZ = ZoneInfo("Europe/Madrid")
 
 def verification_node(state: AgentState) -> dict:
     """
@@ -271,7 +258,6 @@ def verification_node(state: AgentState) -> dict:
         if not start_time:
             # Evento de día completo
             check_start = start_date
-            # Aseguramos que end_date tenga valor para la API (si es un solo día)
             check_end = end_date if end_date else start_date
         else:
             try:
@@ -284,7 +270,6 @@ def verification_node(state: AgentState) -> dict:
                 check_start = start_dt.isoformat()
                 check_end = end_dt.isoformat()
             except ValueError as e:
-                print(f"[Verification] Error al parsear fecha/hora: {e}")
                 return {}
         
     elif function_name == "duplicate_event":
@@ -300,7 +285,6 @@ def verification_node(state: AgentState) -> dict:
             check_start = start_dt.isoformat()
             check_end = end_dt.isoformat()
         except ValueError as e:
-            print(f"[Verification] Error al parsear fecha/hora: {e}")
             return {}
                 
     elif function_name == "patch_event":
@@ -316,11 +300,11 @@ def verification_node(state: AgentState) -> dict:
                  return {}
 
             try:
-                # Parsear el string 'naive' de Gemini (ej. "2025-11-08T12:00:00")
+                # Parsear el string naive (ej. "2025-11-08T12:00:00")
                 naive_start = datetime.fromisoformat(start_str)
                 naive_end = datetime.fromisoformat(end_str)
 
-                # Asignarle la zona horaria local (Europe/Madrid)
+                # Asignar zona horaria local
                 aware_start = naive_start.replace(tzinfo=LOCAL_TZ)
                 aware_end = naive_end.replace(tzinfo=LOCAL_TZ)
                 
@@ -328,7 +312,6 @@ def verification_node(state: AgentState) -> dict:
                 check_end = aware_end.isoformat()
 
             except ValueError as e:
-                print(f"[Verification] Error al parsear dateTime de patch: {e}")
                 return {}
         else:
             # Si el patch no incluye 'start', no hay nada que verificar
@@ -523,10 +506,7 @@ def chat_node(state: dict) -> dict:
     return {"api_response_list": [response]}
 
 
-# ----------------------------------------------------------------------
-# MONTAJE DEL GRAFO
-# ----------------------------------------------------------------------
-
+# GRAFO
 workflow = StateGraph(AgentState)
 workflow.add_node("router", router_node)
 workflow.add_node("tool_interpreter", tool_interpreter)
@@ -548,11 +528,9 @@ def decide_next_step(state: AgentState):
     if verification and verification["conflict_found"]:
         return "report_conflict"
     else:
-        # Si verification_result está vacío (porque no se verificó) o no hay conflicto
         return "continue_execution"
     
-workflow.set_entry_point("router") # define el nodo inicial del flujo
-
+workflow.set_entry_point("router") # nodo inicial del flujo
 workflow.add_conditional_edges(
     "router",
     lambda state: state.get("routing_decision"),
@@ -562,7 +540,6 @@ workflow.add_conditional_edges(
         "chat": "chat"
     }
 )
-
 workflow.add_edge("tool_interpreter", "verifier")
 workflow.add_edge("reasoning_interpreter", "reasoning_executor")
 workflow.add_conditional_edges("verifier", decide_next_step,

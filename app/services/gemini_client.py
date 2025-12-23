@@ -21,7 +21,6 @@ def generar_respuesta(prompt, temp=0.2):
     Usa 'gemini-2.5-pro' y cambia a 'gemini-2.5-flash' si se excede el límite.
     """
 
-    # Crea el modelo que usarás en todo el proyecto
     try:
         model = genai.GenerativeModel("gemini-2.5-pro")
         response = model.generate_content(prompt, stream=True, generation_config={"temperature": temp})
@@ -31,8 +30,6 @@ def generar_respuesta(prompt, temp=0.2):
 
 
     full_text = ""
-    # 1. Itera sobre el 'response_iterator' (sea el Pro o el Flash)
     for chunk in response:
         full_text += chunk.text
-
-    return full_text # 4. Devuelve el texto completo acumulado
+    return full_text #response no es string

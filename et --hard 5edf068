@@ -1,0 +1,120 @@
+[33mcommit 5edf0681a5ab0486e8f374cc5ae76343de9eed2e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Tue Dec 23 15:16:54 2025 +0100
+
+    last version
+
+[33mcommit ee4c1a9bb907519402b18b81bc2b9d488a20ae07[m
+Merge: 92a78024 6e1b1d3b
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Tue Dec 23 11:23:12 2025 +0100
+
+    Merge branch 'frontend'
+
+[33mcommit 6e1b1d3be228e165de64ec2f3c735e6b306871fc[m[33m ([m[1;32mfrontend[m[33m)[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Tue Dec 23 11:22:49 2025 +0100
+
+    Limpieza: borrado de node_modules y logs antes de merge
+
+[33mcommit 92a78024965e1ce92c5627aa901a93fd6e293af4[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Tue Dec 23 11:18:02 2025 +0100
+
+    frontend + arreglo backend
+
+[33mcommit d714f71d26600770032d29578f1ad89b8e88173f[m[33m ([m[1;31morigin/frontend[m[33m)[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Tue Dec 23 10:38:58 2025 +0100
+
+    frontend + arreglo backend
+
+[33mcommit 17c567ac605a0508016ae35bae87cb3a5ffce608[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Mon Dec 22 19:38:01 2025 +0100
+
+    frontend mvp
+
+[33mcommit 6e5a14a2deb54659af4b4d212499ba9708b2aee6[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Mon Dec 22 19:33:53 2025 +0100
+
+    frontend mvp
+
+[33mcommit 4fd4af49bb8c7aaabd389193ba7d107925ef9527[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Wed Nov 19 15:18:43 2025 +0100
+
+    razonamiento y agente router
+
+[33mcommit b81436f6f5c7f277cb3d10668abb9278d8b2626e[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Wed Nov 19 15:18:15 2025 +0100
+
+    razonamiento y agente router
+
+[33mcommit 2574f462dcf05a22ea3a7d7dc56d45373e6cc184[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Wed Nov 19 13:13:02 2025 +0100
+
+    razonamiento y agente router
+
+[33mcommit e28fc0209686e1e3bf573f607b264889750cf2aa[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Thu Nov 13 13:25:47 2025 +0100
+
+    get_user_decision, process_user_decision y arreglos
+
+[33mcommit 7be5b221abdba18fb50405cf92a9cdbf8000d025[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Mon Nov 10 12:07:47 2025 +0100
+
+    propose_node y find_free_slots
+
+[33mcommit bf8004373e9a07a32d78ce3ff300ff8197d7eb39[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Fri Nov 7 14:27:45 2025 +0100
+
+    feat: Add LangGraph flow with conflict detection and timezone fixes
+
+[33mcommit 86e5729c1075b2267c217c4209138b202068293e[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Fri Oct 10 17:07:45 2025 +0200
+
+    Unión Gemini + calendario
+
+[33mcommit cf25718ffdacf8702b44f463cff4a8df29c7920d[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Fri Oct 10 12:42:10 2025 +0200
+
+    Unión Gemini + calendario
+
+[33mcommit bac95e52d878b60ab4cf9db4da2d4268061e2461[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Thu Oct 9 18:14:02 2025 +0200
+
+    Unión Gemini + calendario
+
+[33mcommit 703c4f766037ad00a3f77a5d261d249a7589b7c9[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Wed Oct 8 12:26:12 2025 +0200
+
+    Primeras pruebas
+
+[33mcommit d659a7f6943c2fd92295847ed50a098417c363c9[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Wed Oct 8 12:19:06 2025 +0200
+
+    Elimina venv del seguimiento y actualiza .gitignore
+
+[33mcommit 0bbe3479c0cd48ba8f302b37777b617f1908ac93[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Sun Sep 28 16:46:00 2025 +0200
+
+    .
+
+[33mcommit bfd2738922d0fd9604de0970b34d2b2feb663fe6[m
+Author: clarareina <114593701+clarareina@users.noreply.github.com>
+Date:   Sun Sep 28 16:43:08 2025 +0200
+
+    Initial commit

@@ -5,15 +5,10 @@ from app.state import UndoableAction
 import uuid
 from typing import Dict, Any
 
-# Servicio autenticado
 svc = get_service()
 
-# Zona horaria fija (España)
 LOCAL_TZ = ZoneInfo("Europe/Madrid")
 
-# ----------------------------------------------------------------------
-# CREATE EVENT (FIJO EN EUROPE/MADRID)
-# ----------------------------------------------------------------------
 def create_event(
     service=svc, summary=None,
     start_date=None, end_date=None,
@@ -104,9 +99,8 @@ def create_event(
         return {"response": "Lo siento, no pude crear el evento. Por favor, inténtalo de nuevo.", "undo_info": None}
 
 
-# ----------------------------------------------------------------------
-# GET ID 
-# ----------------------------------------------------------------------
+
+
 def get_id(summary, start_date=None, end_date=None, calendar_id="primary", service=svc):
     user_gave_date = start_date is not None
 
@@ -143,9 +137,8 @@ def get_id(summary, start_date=None, end_date=None, calendar_id="primary", servi
     return None  
 
 
-# ----------------------------------------------------------------------
-# DELETE EVENT 
-# ----------------------------------------------------------------------
+
+
 def delete_event(summary, start_date=None, end_date=None, calendar_id="primary", service=svc):
     event_id = get_id(summary, start_date, end_date, calendar_id, service)
     if not event_id:
@@ -179,16 +172,14 @@ def delete_event(summary, start_date=None, end_date=None, calendar_id="primary",
         return {"response": "Lo siento, no pude eliminar el evento. Por favor, inténtalo de nuevo.", "undo_info": None}
 
 
-# ----------------------------------------------------------------------
-# GET EVENTS 
-# ----------------------------------------------------------------------
+
+
 def get_events(summary=None, start_date=None, end_date=None, calendar_id="primary", service=svc, max=2500):
     if not start_date:
         start_date = datetime.now(LOCAL_TZ).isoformat()
     elif len(start_date) == 10:
         start_date = datetime.fromisoformat(start_date).replace(tzinfo=LOCAL_TZ).isoformat()
     
-
 
     if not end_date:
         end_date = (datetime.now(LOCAL_TZ) + timedelta(days=30)).isoformat()
@@ -220,9 +211,7 @@ def get_events(summary=None, start_date=None, end_date=None, calendar_id="primar
     }
 
 
-# ----------------------------------------------------------------------
-# PATCH EVENT 
-# ----------------------------------------------------------------------
+
 def patch_event(summary, start_date=None, changes=None, service=svc):
     event_id = get_id(summary, start_date, None, "primary", service)
     if not event_id:
@@ -236,30 +225,23 @@ def patch_event(summary, start_date=None, changes=None, service=svc):
             "response": f"Error: No se proporcionaron cambios ('changes').",
             "undo_info": None
         }
-
-    # --- INICIO CORRECCIÓN DE ZONA HORARIA ---
-    # Asignar zona horaria local a los 'dateTime' "naive" que vienen de Gemini
     
-    # Revisar 'start'
     if "start" in changes and changes["start"].get("dateTime"):
         naive_dt_str = changes["start"]["dateTime"]
         try:
             # Parsear naive, asignar zona local
             aware_dt = datetime.fromisoformat(naive_dt_str).replace(tzinfo=LOCAL_TZ)
-            # Actualizar 'changes' con el string ISO completo Y el timeZone
             changes["start"]["dateTime"] = aware_dt.isoformat()
             changes["start"]["timeZone"] = "Europe/Madrid"
         except (ValueError, TypeError):
             print(f"[patch_event] Error parseando start: {naive_dt_str}")
             pass # Dejar que la API falle si el formato es incorrecto
 
-    # Revisar 'end'
     if "end" in changes and changes["end"].get("dateTime"):
         naive_dt_str = changes["end"]["dateTime"]
         try:
             # Parsear naive, asignar zona local
             aware_dt = datetime.fromisoformat(naive_dt_str).replace(tzinfo=LOCAL_TZ)
-            # Actualizar 'changes' con el string ISO completo Y el timeZone
             changes["end"]["dateTime"] = aware_dt.isoformat()
             changes["end"]["timeZone"] = "Europe/Madrid"
         except (ValueError, TypeError):
@@ -272,7 +254,6 @@ def patch_event(summary, start_date=None, changes=None, service=svc):
             eventId=event_id
         ).execute()
 
-        # 'changes' ahora tiene la zona horaria correcta
         svc.events().patch(calendarId="primary", eventId=event_id, body=changes).execute()
 
         undo_info = UndoableAction(
@@ -291,9 +272,7 @@ def patch_event(summary, start_date=None, changes=None, service=svc):
         return {"response": "Lo siento, no pude actualizar el evento. Por favor, inténtalo de nuevo.", "undo_info": None}
 
 
-# ----------------------------------------------------------------------
-# DUPLICATE EVENT 
-# ----------------------------------------------------------------------
+
 def duplicate_event(service=svc, summary=None, original_date=None, new_date=None, new_time=None, calendar_id="primary"):
     if not summary or not new_date:
         return {
@@ -344,9 +323,7 @@ def duplicate_event(service=svc, summary=None, original_date=None, new_date=None
     return result_package
 
 
-# ----------------------------------------------------------------------
 # FUNCIONES DE "DESHACER"
-# ----------------------------------------------------------------------
 def _clean_body_for_restore(body: Dict[str, Any]) -> Dict[str, Any]:
     if not body:
         return {}
@@ -478,49 +455,19 @@ def find_free_slots(duration=None, datetime_min=None, datetime_max=None, service
 
 
 
-# def get_events_json():
-#     """
-#     Obtiene los eventos crudos (JSON) para el Frontend.
-#     """
-#     try:
-#         service = get_service()
-#         now = datetime.now(LOCAL_TZ).isoformat()
-        
-#         events_result = service.events().list(
-#             calendarId='primary', 
-#             timeMin=now,
-#             maxResults=50, 
-#             singleEvents=True,
-#             orderBy='startTime'
-#         ).execute()
-        
-#         return events_result.get('items', [])
-#     except Exception as e:
-#         print(f"Error obteniendo JSON: {e}")
-#         return []
-
-
-
 def get_events_json():
     """
     Obtiene TODOS los eventos (pasados y futuros) para el Frontend.
     """
     try:
         service = get_service()
-        
-        # 1. DEFINIR EL RANGO DE TIEMPO
-        # Calculamos la fecha de hace 1 año para ver el pasado
         past_date = (datetime.now(LOCAL_TZ) - timedelta(days=365)).isoformat()
         
         events_result = service.events().list(
             calendarId='primary', 
             
-            # 2. ABRIR EL GRIFO DEL TIEMPO
             timeMin=past_date, # Pedimos desde hace 1 año
-            
-            # 3. AUMENTAR EL LÍMITE DE EVENTOS
-            maxResults=2500,   # Google permite hasta 2500 por página (así no se corta la lista)
-            
+            maxResults=2500,   
             singleEvents=True,
             orderBy='startTime'
         ).execute()

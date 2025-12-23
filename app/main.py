@@ -6,12 +6,11 @@ from fastapi.middleware.cors import CORSMiddleware
 import json                 
 from datetime import datetime 
 
-# El punto (.) indica que flow.py está en la misma carpeta que este archivo.
 from .flow import run_agent
 
 app = FastAPI(
-    title="TFG CLARA API",
-    description="Backend del agente inteligente para gestión de Google Calendar",
+    title="TFG",
+    description="Backend",
     version="1.0.0"
 )
 
@@ -37,17 +36,16 @@ def registrar_log(usuario: str, pregunta: str, respuesta: str):
 
 
 # CONFIGURACIÓN DE CORS (Permisos de acceso)
-# Permite hablar con el servidor
+# Para hablar con el servidor
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # "*" (dejar pasar a todos)
+    allow_origins=["*"], # dejar pasar a todos
     allow_credentials=True,
     allow_methods=["*"], # Permitir todos los métodos (GET, POST...)
     allow_headers=["*"],
 )
 
-# Modelos de Datos (DTOs)
-# Pydantic para validar que los datos que entran son correctos.
+# Modelos de Datos
 class UserRequest(BaseModel):
     query: str
     user_id: Optional[str] = "default_user"  # Para futura memoria por usuario
@@ -84,7 +82,6 @@ async def chat_endpoint(request: UserRequest):
 
     except Exception as e:
         print(f"[API] Error técnico: {e}")
-        # Devolver respuesta amigable en lugar de error HTTP
         return AgentResponse(
             status="error",
             response="Lo siento, ha ocurrido un problema al procesar tu solicitud. Por favor, inténtalo de nuevo."

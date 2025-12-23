@@ -1,6 +1,6 @@
-from app.nodes import app # Importas el agente YA compilado
+from app.nodes import app 
 
-# Le dices qué "cajón" de memoria usar
+# dice qué "cajón" de memoria usar
 config = {"configurable": {"thread_id": "conversation_1"}}
 
 def run_agent(user_input: str) -> str:
