@@ -37,5 +37,6 @@ class AgentState(TypedDict):
     suggested_slots: Optional[List[Dict[str, str]]]  # Almacena las sugerencias (ej. [{'start': ..., 'end': ...}])
     user_choice: Optional[str]
     routing_decision: Optional[str]
+    is_final: Optional[bool]
 
 

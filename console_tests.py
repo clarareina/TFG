@@ -12,3 +12,4 @@ if __name__ == "__main__":
             break
 
         result = run_agent(user_input)
+        print(result)

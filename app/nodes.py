@@ -1,12 +1,12 @@
 import json
 import re
 from typing import TypedDict, Optional, List, Dict, Any, Literal
-from app.prompts import tool_prompt, reasoning_prompt, analysis_prompt
-from app.services.gemini_client import generar_respuesta
+from .prompts import tool_prompt, reasoning_prompt, analysis_prompt
+from .services.gemini_client import generar_respuesta
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import StateGraph
-import app.calendar_tools as calendar_tools 
-from app.state import AgentState, VerificationResult
+from app import calendar_tools
+from .state import AgentState, VerificationResult
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo 
 import sqlite3, atexit
@@ -239,9 +239,7 @@ def confirmation_node(state: dict) -> dict:
     results = state.get("api_response_list", [])
     if not results:
         return {"final_response": "No se obtuvo respuesta del calendario."}
-    print("confirmation_node: ", results[0])
-    return {"final_response": results[0]} 
-
+    return {"final_response": "\n".join(results)} 
 
 
 LOCAL_TZ = ZoneInfo("Europe/Madrid")
@@ -442,12 +440,16 @@ def propose_node(state:AgentState) -> dict:
 #nodo de espera
 def get_user_decision(state: AgentState) -> dict:
     """
-    En lugar de esperar input(), pasa el mensaje de conflicto al confirmer.
-    El usuario responderá en un nuevo mensaje.
+    Imprime la propuesta Y LUEGO pausa el flujo.
     """    
-    # El mensaje ya está en api_response_list desde propose_node
-    # Solo lo pasamos al confirmer
-    return {}
+    messages = state.get("api_response_list", [])
+    if messages:
+        print("\n" + messages[0]) 
+    
+    user_input = input("> ").strip().lower()
+    state["user_choice"] = user_input
+    
+    return state
 
 def process_user_decision(state: AgentState) -> dict:
     user_choice = state.get("user_choice", '').lower()
@@ -570,7 +572,15 @@ workflow.add_conditional_edges("verifier", decide_next_step,
     }
 )
 workflow.add_edge("proposer", "get_user_decision")
-workflow.add_edge("get_user_decision", "confirmer")  # Va directamente al confirmer con el mensaje de conflicto
+workflow.add_edge("get_user_decision", "process_user_decision")
+workflow.add_conditional_edges("process_user_decision",
+    lambda state: state.get("routing_decision"),
+    {
+        "execute": "tool_executor",
+        "end": "confirmer",
+        "invalid_choice": "get_user_decision"
+    }
+)
 workflow.add_edge("tool_executor", "confirmer")
 workflow.add_edge("reasoning_executor", "analysis")
 workflow.add_edge("analysis", "confirmer") 

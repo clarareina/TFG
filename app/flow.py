@@ -13,4 +13,3 @@ def run_agent(user_input: str) -> str:
         if "confirmer" in event:
             final_response = event["confirmer"].get("final_response")
     return final_response
-

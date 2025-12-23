@@ -442,7 +442,7 @@ def find_free_slots(duration=None, datetime_min=None, datetime_max=None, service
     busy_slots = busy_periods_response.get('calendars', {}).get(calendar_id, {}).get('busy', [])
 
     if not busy_slots:
-        return [(datetime_min, datetime_max)]
+        return [{"start": datetime_min, "end": datetime_max}]
     
     else:
         current_time = datetime.fromisoformat(datetime_min)
