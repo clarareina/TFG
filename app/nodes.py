@@ -18,7 +18,7 @@ def clean_json(text):
     """Limpia el 'wrapper' ```json ... ``` de la respuesta de Gemini."""
     if not text:
         return ""
-    return re.sub(r"```json ```", "", text, flags=re.IGNORECASE).strip()
+    return re.sub(r"```json|```", "", text, flags=re.IGNORECASE).strip()
 
 
 def interpret_response_json(text):

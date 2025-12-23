@@ -11,50 +11,44 @@ import type { CredentialResponse } from '@react-oauth/google'
 const API_URL = 'http://localhost:8000'
 
 function App() {
-  // 1. ESTADO: Inicializamos mirando directamente en la memoria del navegador
+  // 1. ESTADO: Inicializamos mirando directamente en localStorage
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     return localStorage.getItem('google_logged_in') === 'true'
   })
-  const [errorMessage, setErrorMessage] = useState<string>('')
 
-  // 2. VERIFICAR AUTENTICACIÓN AL CARGAR (si dice que está logueado, verificar con backend)
+  // 2. VERIFICAR CON BACKEND AL CARGAR (si el backend se reinició, cierra sesión)
   useEffect(() => {
     if (isLoggedIn) {
-      checkAuthStatus()
+      fetch(`${API_URL}/auth/status`)
+        .then(res => res.json())
+        .then(data => {
+          if (!data.authenticated) {
+            localStorage.removeItem('google_logged_in')
+            setIsLoggedIn(false)
+          }
+        })
+        .catch(() => {
+          // Si el backend no responde, cerrar sesión
+          localStorage.removeItem('google_logged_in')
+          setIsLoggedIn(false)
+        })
     }
   }, [])
-
-  const checkAuthStatus = async () => {
-    try {
-      const response = await fetch(`${API_URL}/auth/status/default_user`)
-      const data = await response.json()
-      if (!data.authenticated) {
-        // Backend dice que no está autenticado
-        setErrorMessage('USUARIO NO AUTENTICADO')
-        localStorage.removeItem('google_logged_in')
-        setIsLoggedIn(false)
-      }
-    } catch (error) {
-      console.error('Error verificando autenticación:', error)
-    }
-  }
 
   // 3. FUNCIÓN LOGIN: Cuando Google nos da el OK
   const handleLoginSuccess = (credentialResponse: CredentialResponse) => {
     console.log("Login Éxito:", credentialResponse)
-    // Guardamos la "marca" en el navegador para que no se olvide al recargar
     localStorage.setItem('google_logged_in', 'true')
-    setErrorMessage('')
     setIsLoggedIn(true)
   }
 
-  // 4. FUNCIÓN LOGOUT: Para poder salir y probar de nuevo
+  // 4. FUNCIÓN LOGOUT: Al pulsar "Salir"
   const handleLogout = () => {
-    localStorage.removeItem('google_logged_in') // Borramos la marca
-    setIsLoggedIn(false) // Actualizamos la pantalla
+    localStorage.removeItem('google_logged_in')
+    setIsLoggedIn(false)
   }
 
-  // 5. PANTALLA DE LOGIN (Si NO estamos logueados)
+  // 4. PANTALLA DE LOGIN (Si NO estamos logueados)
   if (!isLoggedIn) {
     return (
       <div style={{
@@ -64,13 +58,6 @@ function App() {
         <div className="card" style={{ maxWidth: '400px', textAlign: 'center', padding: '40px' }}>
           <h2>Bienvenido</h2>
           <p style={{ marginBottom: '20px', color: '#666' }}>Inicia sesión para continuar</p>
-
-          {/* Mensaje de error si no está autenticado */}
-          {errorMessage && (
-            <p style={{ color: '#ef4444', marginBottom: '15px', fontWeight: 'bold' }}>
-              {errorMessage}
-            </p>
-          )}
 
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <GoogleLogin
