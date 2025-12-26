@@ -172,6 +172,80 @@ def delete_event(summary, start_date=None, end_date=None, calendar_id="primary",
         return {"response": "Lo siento, no pude eliminar el evento. Por favor, inténtalo de nuevo.", "undo_info": None}
 
 
+def delete_date_events(start_date, end_date, calendar_id="primary", service=svc):
+    # Convertir fechas a formato ISO con timezone
+    if len(start_date) == 10:
+        start_date_iso = datetime.fromisoformat(start_date).replace(tzinfo=LOCAL_TZ).isoformat()
+    else:
+        start_date_iso = start_date
+    
+    if len(end_date) == 10:
+        end_dt = datetime.fromisoformat(end_date)
+        end_date_iso = end_dt.replace(hour=23, minute=59, second=59, tzinfo=LOCAL_TZ).isoformat()
+    else:
+        end_date_iso = end_date
+
+    # Obtener eventos directamente de la API (no usar get_events que devuelve un dict)
+    events_result = service.events().list(
+        calendarId=calendar_id,
+        timeMin=start_date_iso,
+        timeMax=end_date_iso,
+        maxResults=2500,
+        singleEvents=True,
+        orderBy="startTime"
+    ).execute()
+    
+    events = events_result.get("items", [])
+    
+    if not events:
+        return {
+            "response": f"No se encontró ningún evento para el periodo indicado.",
+            "undo_info": None 
+        }
+    
+    deleted_count = 0
+    deleted_summaries = []
+    deleted_bodies = []  # Para el undo
+    
+    for event in events:
+        try:
+            event_id = event.get("id")
+            event_summary = event.get("summary", "(Sin título)")
+            
+            # Guardar el evento completo antes de borrarlo (para undo)
+            deleted_bodies.append(event)
+            
+            service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+            deleted_count += 1
+            deleted_summaries.append(event_summary)
+        except Exception as e:
+            print(f"[delete_date_events] Error eliminando evento: {e}")
+    
+    if deleted_count == 0:
+        return {
+            "response": "No se pudo eliminar ningún evento.",
+            "undo_info": None
+        }
+    
+    # Crear undo_info con la lista de eventos eliminados
+    undo_info = UndoableAction(
+        operation="delete_date_events",
+        calendarId=calendar_id,
+        eventId="",  # No aplica para eliminación múltiple
+        previous_body=None,
+        previous_bodies=deleted_bodies
+    )
+    
+    if deleted_count == 1:
+        return {
+            "response": f"He eliminado el evento \"{deleted_summaries[0]}\" correctamente.",
+            "undo_info": undo_info 
+        }
+    else:
+        return {
+            "response": f"He eliminado {deleted_count} eventos correctamente.",
+            "undo_info": undo_info 
+        }
 
 
 def get_events(summary=None, start_date=None, end_date=None, calendar_id="primary", service=svc, max=2500):
@@ -328,18 +402,31 @@ def _clean_body_for_restore(body: Dict[str, Any]) -> Dict[str, Any]:
     if not body:
         return {}
     
+    # Campos de solo lectura que la API no acepta al crear/actualizar
     read_only_fields = [
         'id', 'status', 'htmlLink', 'created', 'updated', 'creator', 
-        'organizer', 'iCalUID', 'sequence', 'etag', 'eventType'
+        'organizer', 'iCalUID', 'sequence', 'etag', 'eventType',
+        'kind', 'recurringEventId', 'originalStartTime'
     ]
     
     clean_body = body.copy()
     for field in read_only_fields:
         clean_body.pop(field, None)
     
+    # Limpiar reminders vacíos
     if 'reminders' in clean_body and 'useDefault' in clean_body['reminders']:
         if not clean_body['reminders'].get('overrides'):
              clean_body.pop('reminders')
+    
+    # Limpiar attendees problemáticos (a veces vienen con campos extra)
+    if 'attendees' in clean_body:
+        clean_attendees = []
+        for attendee in clean_body.get('attendees', []):
+            clean_attendees.append({'email': attendee.get('email')})
+        if clean_attendees:
+            clean_body['attendees'] = clean_attendees
+        else:
+            clean_body.pop('attendees', None)
 
     return clean_body
 
@@ -381,6 +468,29 @@ def undo_last_action(action_to_undo: UndoableAction, service=svc):
             ).execute()
             summary = body_to_restore.get('summary', event_id)
             message = f"Acción deshecha: El evento '{summary}' ha vuelto a su estado anterior."
+
+        elif operation == "delete_date_events":
+            # Restaurar todos los eventos eliminados
+            previous_bodies = action_to_undo.get('previous_bodies', [])
+            restored_count = 0
+            for body in previous_bodies:
+                try:
+                    body_to_restore = _clean_body_for_restore(body)
+                    service.events().insert(
+                        calendarId=calendar_id,
+                        body=body_to_restore
+                    ).execute()
+                    restored_count += 1
+                except Exception as e:
+                    print(f"[undo_last_action] Error restaurando evento: {e}")
+            
+            if restored_count == 1:
+                message = "Acción deshecha: Se ha restaurado 1 evento."
+            else:
+                message = f"Acción deshecha: Se han restaurado {restored_count} eventos."
+
+        else:
+            message = f"Operación de undo no reconocida: {operation}"
 
         return {
             "response": message,

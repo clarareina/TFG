@@ -33,28 +33,31 @@ const StatsInterface = () => {
             .replace(/\n/g, '<br>')
     }
 
+    // Constantes
+    const DIAS = 7 // Próximos 7 días incluyendo hoy
+    const HORAS_POR_DIA = 13 // De 8:00 a 21:00
+    const TOTAL_HORAS = DIAS * HORAS_POR_DIA // 91 horas
+
     // Calcular estadísticas del gráfico
     const calculateStats = () => {
         fetch('http://localhost:8000/api/calendar/events')
             .then(res => res.json())
             .then((data: CalendarEvent[]) => {
                 const now = new Date()
-                const startOfWeek = new Date(now)
-                startOfWeek.setDate(now.getDate() - now.getDay() + 1)
-                startOfWeek.setHours(9, 0, 0, 0)
+                now.setHours(0, 0, 0, 0) // Inicio de hoy
 
-                const endOfWeek = new Date(startOfWeek)
-                endOfWeek.setDate(startOfWeek.getDate() + 4)
-                endOfWeek.setHours(18, 0, 0, 0)
+                const endDate = new Date(now)
+                endDate.setDate(now.getDate() + DIAS)
+                endDate.setHours(23, 59, 59, 999)
 
-                const weekEvents = data.filter(evt => {
+                const upcomingEvents = data.filter(evt => {
                     if (!evt.start.dateTime) return false
                     const eventStart = new Date(evt.start.dateTime)
-                    return eventStart >= startOfWeek && eventStart <= endOfWeek
+                    return eventStart >= now && eventStart <= endDate
                 })
 
                 let occupiedMinutes = 0
-                weekEvents.forEach(evt => {
+                upcomingEvents.forEach(evt => {
                     if (evt.start.dateTime && evt.end.dateTime) {
                         const start = new Date(evt.start.dateTime)
                         const end = new Date(evt.end.dateTime)
@@ -62,10 +65,9 @@ const StatsInterface = () => {
                     }
                 })
 
-                const totalHours = 40
                 const occupiedHours = Math.round(occupiedMinutes / 60 * 10) / 10
-                const freeHours = Math.max(0, totalHours - occupiedHours)
-                const occupiedPercent = Math.min(100, Math.round((occupiedHours / totalHours) * 100))
+                const freeHours = Math.max(0, TOTAL_HORAS - occupiedHours)
+                const occupiedPercent = Math.min(100, Math.round((occupiedHours / TOTAL_HORAS) * 100))
                 const freePercent = Math.max(0, 100 - occupiedPercent)
                 const freeSlots = Math.floor(freeHours)
 
@@ -81,7 +83,7 @@ const StatsInterface = () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    query: 'Dame una única recomendación para esta semana por puntos. Responde directamente con la recomendación, sin introducciones, aclaraciones ni referencias a fuentes. Máximo 4 líneas.',
+                    query: 'Dame una recomendación o resumen para los próximos 7 días por puntos. Responde directamente con la recomendación, sin introducciones, aclaraciones ni referencias a fuentes. Máximo 4 líneas.',
                     user_id: 'stats_widget'
                 })
             })
@@ -124,7 +126,7 @@ const StatsInterface = () => {
     // SVG Donut Chart
     const radius = 40
     const circumference = 2 * Math.PI * radius
-    const freeDash = (stats.freePercent / 100) * circumference
+    const occupiedDash = (stats.occupiedPercent / 100) * circumference
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '12px' }}>
@@ -133,11 +135,11 @@ const StatsInterface = () => {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', marginTop: '10px' }}>
 
                 <svg width="100" height="100" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r={radius} fill="none" stroke="#EF4444" strokeWidth="12" />
+                    <circle cx="50" cy="50" r={radius} fill="none" stroke="#60A5FA" strokeWidth="12" />
                     <circle
                         cx="50" cy="50" r={radius}
-                        fill="none" stroke="#60A5FA" strokeWidth="12"
-                        strokeDasharray={`${freeDash} ${circumference}`}
+                        fill="none" stroke="#EF4444" strokeWidth="12"
+                        strokeDasharray={`${occupiedDash} ${circumference}`}
                         strokeLinecap="round" transform="rotate(-90 50 50)"
                     />
                 </svg>

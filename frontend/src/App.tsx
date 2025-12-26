@@ -1,77 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import './App.css'
 import ChatInterface from './components/ChatInterface'
 import CalendarView from './components/CalendarInterface'
 import UpcomingEvents from './components/EventsInterface'
 import StatsInterface from './components/StatsInterface'
 
-import { GoogleLogin } from '@react-oauth/google'
-import type { CredentialResponse } from '@react-oauth/google'
-
-const API_URL = 'http://localhost:8000'
-
 function App() {
-  // 1. ESTADO: Inicializamos mirando directamente en localStorage
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return localStorage.getItem('google_logged_in') === 'true'
-  })
+  const [isCalendarLoading, setIsCalendarLoading] = useState(true)
 
-  // 2. VERIFICAR CON BACKEND AL CARGAR (si el backend se reinició, cierra sesión)
-  useEffect(() => {
-    if (isLoggedIn) {
-      fetch(`${API_URL}/auth/status`)
-        .then(res => res.json())
-        .then(data => {
-          if (!data.authenticated) {
-            localStorage.removeItem('google_logged_in')
-            setIsLoggedIn(false)
-          }
-        })
-        .catch(() => {
-          // Si el backend no responde, cerrar sesión
-          localStorage.removeItem('google_logged_in')
-          setIsLoggedIn(false)
-        })
-    }
-  }, [])
-
-  // 3. FUNCIÓN LOGIN: Cuando Google nos da el OK
-  const handleLoginSuccess = (credentialResponse: CredentialResponse) => {
-    console.log("Login Éxito:", credentialResponse)
-    localStorage.setItem('google_logged_in', 'true')
-    setIsLoggedIn(true)
-  }
-
-  // 4. FUNCIÓN LOGOUT: Al pulsar "Salir"
-  const handleLogout = () => {
-    localStorage.removeItem('google_logged_in')
-    setIsLoggedIn(false)
-  }
-
-  // 4. PANTALLA DE LOGIN (Si NO estamos logueados)
-  if (!isLoggedIn) {
-    return (
-      <div style={{
-        height: '100vh', display: 'flex', flexDirection: 'column',
-        justifyContent: 'center', alignItems: 'center', backgroundColor: '#f3f4f6'
-      }}>
-        <div className="card" style={{ maxWidth: '400px', textAlign: 'center', padding: '40px' }}>
-          <h2>Bienvenido</h2>
-          <p style={{ marginBottom: '20px', color: '#666' }}>Inicia sesión para continuar</p>
-
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <GoogleLogin
-              onSuccess={handleLoginSuccess}
-              onError={() => console.log('Login Fallido')}
-              useOneTap
-            />
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // 6. PANTALLA PRINCIPAL (DASHBOARD) 
+  // PANTALLA PRINCIPAL (DASHBOARD)
   return (
     <div className="layout-dashboard">
 
@@ -79,21 +16,6 @@ function App() {
       <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', alignItems: 'center' }}>
           <h3 style={{ margin: 0 }}>Asistente</h3>
-          <button
-            onClick={handleLogout}
-            style={{
-              background: '#ef4444',
-              color: 'white',
-              border: 'none',
-              padding: '6px 12px',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '0.8rem',
-              fontWeight: 'bold'
-            }}
-          >
-            Salir
-          </button>
         </div>
         <ChatInterface />
       </div>
@@ -110,7 +32,12 @@ function App() {
         }}>
           <h3 style={{ margin: 0 }}>Calendario</h3>
 
-          {/* Botón de Google Calendar (Ahora vive aquí arriba) */}
+          {/* Texto de carga centrado */}
+          {isCalendarLoading && (
+            <span style={{ color: '#9CA3AF', flex: 1, textAlign: 'center' }}>Cargando calendario...</span>
+          )}
+
+          {/* Botón de Google Calendar */}
           <button
             onClick={() => window.open('https://calendar.google.com', '_blank')}
             style={{
@@ -124,9 +51,9 @@ function App() {
           </button>
         </div>
 
-        {/* EL CALENDARIO (Ahora ocupará el resto del espacio) */}
+        {/* EL CALENDARIO */}
         <div style={{ flex: 1, minHeight: 0 }}>
-          <CalendarView />
+          <CalendarView onLoadingChange={setIsCalendarLoading} />
         </div>
       </div>
 

@@ -35,6 +35,7 @@ def interpret_response_json(text):
 FUNCTION_MAP = {
     "create_event": calendar_tools.create_event,
     "delete_event": calendar_tools.delete_event,
+    "delete_date_events": calendar_tools.delete_date_events,
     "duplicate_event": calendar_tools.duplicate_event,
     "patch_event": calendar_tools.patch_event,
     "get_events": calendar_tools.get_events,
@@ -121,6 +122,19 @@ def reasoning_interpreter(state: dict) -> dict:
         actions_to_execute = json_object
     elif isinstance(json_object, dict):
         actions_to_execute.append(json_object)
+    
+    # Fallback: si no hay acciones válidas, usar get_events para la semana actual
+    if not actions_to_execute:
+        now = datetime.now(LOCAL_TZ)
+        start_week = now - timedelta(days=now.weekday())
+        end_week = start_week + timedelta(days=6)
+        actions_to_execute = [{
+            "function": "get_events",
+            "parameters": {
+                "start_date": start_week.strftime("%Y-%m-%d"),
+                "end_date": end_week.strftime("%Y-%m-%d")
+            }
+        }]
                 
     return {
         "structured_json_list": actions_to_execute,

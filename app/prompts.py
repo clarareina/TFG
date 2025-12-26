@@ -11,7 +11,7 @@ def tool_prompt():
 
   Formato de salida:
   {
-    "function": "<create_event | delete_event | duplicate_event | patch_event | get_events>",
+    "function": "<create_event | delete_event | delete_date_events| duplicate_event | patch_event | get_events>",
     "parameters": { ... }
   }
   Si hay varias instrucciones (1., 2., 3., …), devuelve un ARRAY JSON con un objeto por instrucción, en el mismo orden.
@@ -46,6 +46,11 @@ def tool_prompt():
   Deshace la última acción (creación, borrado o modificación) que el agente acaba de realizar.
   Se usa si el usuario pide revertir la acción más reciente.
   Parámetros: ninguno.
+
+  7) delete_date_events
+  Elimina eventos según fecha o rango de fecha
+  Parámetros: summary, start_date, end_date.
+  Llama a get_id para obtener los eventId.
   ────────────────────────────────────────
   Reglas de interpretación (OBLIGATORIAS)
 
@@ -324,10 +329,34 @@ def tool_prompt():
   Usuario: "Deshacer"
   Respuesta:
   [
-  s{
+  {
      "function": "undo_last_action",
      "parameters": {}
    }
+  ]
+
+  Usuario: "Elimina los eventos de la semena"
+  Respuesta:
+  [
+  {
+     "function": "delete_date_events",
+     "parameters": {
+        start_date: "2025-10-03",
+        end_date: "2025-10-10"
+     }
+  }
+  ]
+
+    Usuario: "Elimina los eventos del mes de septiembre"
+  Respuesta:
+  [
+  {
+     "function": "delete_date_events",
+     "parameters": {
+        start_date: "2025-09-01",
+        end_date: "2025-09-30"
+     }
+  }
   ]
   """
 

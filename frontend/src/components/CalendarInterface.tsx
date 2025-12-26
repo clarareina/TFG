@@ -3,25 +3,30 @@ import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 
-const CalendarView = () => {
+interface CalendarViewProps {
+  onLoadingChange?: (isLoading: boolean) => void
+}
+
+const CalendarView = ({ onLoadingChange }: CalendarViewProps) => {
   const [events, setEvents] = useState([])
 
   // Mapa de colores de Google Calendar (colorId -> hex)
   const googleColors: { [key: string]: string } = {
-    '1': '#7986CB',  
-    '2': '#33B679',  
-    '3': '#8E24AA',  
-    '4': '#E67C73',  
-    '5': '#F6BF26',  
-    '6': '#F4511E',  
-    '7': '#039BE5',  
-    '8': '#616161',  
-    '9': '#3F51B5',  
-    '10': '#0B8043', 
-    '11': '#D50000', 
+    '1': '#7986CB',
+    '2': '#33B679',
+    '3': '#8E24AA',
+    '4': '#E67C73',
+    '5': '#F6BF26',
+    '6': '#F4511E',
+    '7': '#039BE5',
+    '8': '#616161',
+    '9': '#3F51B5',
+    '10': '#0B8043',
+    '11': '#D50000',
   }
 
   const fetchEvents = () => {
+    onLoadingChange?.(true)
     fetch('http://localhost:8000/api/calendar/events')
       .then(res => res.json())
       .then(data => {
@@ -29,7 +34,7 @@ const CalendarView = () => {
         const formattedEvents = data.map((evt: any) => {
           // Usar el color original de Google Calendar si existe
           const colorId = evt.colorId
-          const defaultColor = '#036ce5ff' 
+          const defaultColor = '#036ce5ff'
           const bgColor = colorId ? (googleColors[colorId] || defaultColor) : defaultColor
 
           return {
@@ -44,6 +49,9 @@ const CalendarView = () => {
         setEvents(formattedEvents)
       })
       .catch(() => { })
+      .finally(() => {
+        onLoadingChange?.(false)
+      })
   }
 
   useEffect(() => {

@@ -6,10 +6,11 @@ class UndoableAction(TypedDict):
     Guarda la información necesaria para revertir una acción 
     ejecutada en Google Calendar.
     """
-    operation: Literal["create_event", "delete_event", "patch_event"] # La acción que se realizó
+    operation: Literal["create_event", "delete_event", "patch_event", "delete_date_events"] # La acción que se realizó
     calendarId: str
-    eventId: str
-    previous_body: Optional[Dict[str, Any]] # El 'body' ANTES de la acción
+    eventId: str  # Para acciones simples
+    previous_body: Optional[Dict[str, Any]] # El 'body' ANTES de la acción (acciones simples)
+    previous_bodies: Optional[List[Dict[str, Any]]] # Lista de bodies para delete_date_events
 
 class VerificationResult(TypedDict):
     """

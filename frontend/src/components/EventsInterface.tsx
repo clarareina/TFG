@@ -25,28 +25,26 @@ const UpcomingEvents = () => {
             .then(res => res.json())
             .then((data: CalendarEvent[]) => {
                 const now = new Date()
-                const startOfWeek = new Date(now)
-                startOfWeek.setDate(now.getDate() - now.getDay() + 1) // Lunes
-                startOfWeek.setHours(0, 0, 0, 0)
+                now.setHours(0, 0, 0, 0) // Inicio de hoy
 
-                const endOfWeek = new Date(startOfWeek)
-                endOfWeek.setDate(startOfWeek.getDate() + 6) // Domingo
-                endOfWeek.setHours(23, 59, 59, 999)
+                const endDate = new Date(now)
+                endDate.setDate(now.getDate() + 7) // 7 días desde hoy
+                endDate.setHours(23, 59, 59, 999)
 
-                // Filtrar eventos de esta semana y futuros
-                const weekEvents = data.filter(evt => {
+                // Filtrar eventos de los próximos 7 días (incluyendo hoy)
+                const upcomingEvents = data.filter(evt => {
                     const eventStart = new Date(evt.start.dateTime || evt.start.date || '')
-                    return eventStart >= now && eventStart <= endOfWeek
+                    return eventStart >= now && eventStart <= endDate
                 })
 
                 // Ordenar por fecha
-                weekEvents.sort((a, b) => {
+                upcomingEvents.sort((a, b) => {
                     const dateA = new Date(a.start.dateTime || a.start.date || '')
                     const dateB = new Date(b.start.dateTime || b.start.date || '')
                     return dateA.getTime() - dateB.getTime()
                 })
 
-                setEvents(weekEvents)
+                setEvents(upcomingEvents)
             })
             .catch(() => { })
             .finally(() => setIsLoading(false))
@@ -99,7 +97,7 @@ const UpcomingEvents = () => {
                 </p>
             ) : events.length === 0 ? (
                 <p style={{ color: '#888', textAlign: 'center', marginTop: '20px' }}>
-                    No hay eventos esta semana
+                    No hay eventos en los próximos 7 días
                 </p>
             ) : (
                 events.map((evt, index) => (
