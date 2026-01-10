@@ -280,6 +280,8 @@ def delete_event(summary, start_date=None, end_date=None, calendar_id="primary",
 
 
 def delete_date_events(start_date, end_date, calendar_id="primary", service=svc):
+    if not end_date:
+        end_date = start_date
     # Convertir fechas a formato ISO con timezone
     if len(start_date) == 10:
         start_date_iso = datetime.fromisoformat(start_date).replace(tzinfo=LOCAL_TZ).isoformat()
