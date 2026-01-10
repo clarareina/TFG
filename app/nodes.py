@@ -49,6 +49,7 @@ def router_node(state: AgentState) -> dict:
     """
     Clasifica la intención del usuario.
     """
+    now = datetime.now(LOCAL_TZ)
     raw_msg = state['input_user']
     
     message = raw_msg.lower().strip()
@@ -62,19 +63,27 @@ def router_node(state: AgentState) -> dict:
         print(f"[Router] (Tool)")
         return {"routing_decision": "tool_use"}
     
-    if any(w in message for w in ["busca", "crees", "idea", "encuentra", "tardar", "hueco", "tengo", "resum", "dime", "cuanto", "cuánto", "estima"]):
+    if any(w in message for w in ["busca", "crees", "idea", "encuentra", "tardar", "hueco", "tengo", "resum", "dime", "estima"]):
         print(f"[Router] (Reasoning)")
         return {"routing_decision": "reasoning"}
     
-    
+    print(f"[Router] (Chat)")
+
     
     classification_prompt = f"""
-    Eres un enrutador de sistema ciego. Clasifica el texto.
+    Eres un enrutador de sistema ciego. Clasifica el texto. Debes saber que hoy es {now.strftime('%Y-%m-%d')}.
+    Debes comprobar primero que sean cosas relacionadas con el calendario, sino mandar a chat
 
     CATEGORÍAS:
-    1. tool_use: Acciones (crear, borrar, modificar, deshacer). REGLA DE ORO: Ante la duda de una acción, usa esta.
-    2. reasoning: Consultas, análisis, búsquedas.
-    3. chat: SOLO para saludos ("Hola"), despedidas ("Adiós", "Gracias"), o temas que NO tienen nada que ver con el calendario (chistes, el tiempo, política).
+    1. tool_use: Acciones (crear, borrar, modificar, deshacer). 
+    2. reasoning: Consultas de razonamiento, análisis, búsquedas.
+    3. chat: 
+        - Para saludos ("Hola")
+        - Para despedidas ("Adiós", "Gracias")
+        - Para cuestiones b reves relacionadas con calendario ("Mañana será 10 de febrero")
+        - Para cuentas atrás de días
+        - Para preguntas sobré qué día es hoy o qué día será
+        - Para temas que NO tienen nada que ver con el calendario (chistes, el tiempo, política).
    
     Petición: "{raw_msg}" # Usamos el mensaje original con mayúsculas para el LLM
     
@@ -159,17 +168,15 @@ def tool_executor(state: AgentState) -> dict:
             if function_name == "undo_last_action":
                 parameters = {"action_to_undo": current_undo_state}
 
-            try:
-                action_result = actual_function(**parameters)
-                if isinstance(action_result, dict):
-                    response_str = action_result.get("response", "Acción completada.")
-                    new_undo_info = action_result.get("undo_info") 
-                    execution_results.append(response_str)
-                    current_undo_state = new_undo_info
-                else:
-                    execution_results.append(str(action_result))
-            except Exception as e:
-                execution_results.append(f"Error: {e}")
+            action_result = actual_function(**parameters)
+            if isinstance(action_result, dict):
+                response_str = action_result.get("response", "Acción completada.")
+                new_undo_info = action_result.get("undo_info") 
+                execution_results.append(response_str)
+                current_undo_state = new_undo_info
+            else:
+                execution_results.append(str(action_result))
+       
         else:
             execution_results.append(f"Error: función {function_name} no encontrada.")
     return {
@@ -259,7 +266,7 @@ def verification_node(state: AgentState) -> dict:
 
     check_start = None
     check_end = None
-    
+
     if function_name == "create_event":
         start_date = parameters.get("start_date")
         start_time = parameters.get("start_time")
@@ -337,7 +344,7 @@ def verification_node(state: AgentState) -> dict:
     if not check_start:
         # Si ninguna lógica asignó fechas (p.ej. patch sin 'start'), salimos
         return {}
-        
+    
     scan_result_package = calendar_tools.get_events(
         start_date=check_start, 
         end_date=check_end,
@@ -345,14 +352,20 @@ def verification_node(state: AgentState) -> dict:
     )
 
     scan_response_str = scan_result_package.get("response", "")
-    
+
     if "No se encontraron eventos" in scan_response_str:
         result = VerificationResult(conflict_found=False, conflicting_events=[])
         return {"verification_result": result, "pending_action": None}
 
+    elif "Error" in scan_response_str or "inválida" in scan_response_str:
+        result = VerificationResult(conflict_found=False, conflicting_events=[])
+        return {"verification_result": result}
+        
     else:
         result = VerificationResult(conflict_found=True, conflicting_events=[{"summary": scan_response_str}])
         return {"verification_result": result, "pending_action": action}
+
+
 
 
 
@@ -503,21 +516,35 @@ def analysis_node(state: dict) -> dict:
     return {"api_response_list": [response_text]}
 
 
-def chat_node(state: dict) -> dict:
-    user_input = state['input_user']    
-    prompt = """
-    Eres un asistente inteligente especializado en la gestión de Google Calendar.
-    Tu objetivo en esta fase es conversar de forma amable, breve y servicial con el usuario.
 
-    Reglas:
-    1. Mantén un tono profesional pero cercano.
-    2. Tus respuestas deben ser concisas (máximo 2 frases salvo que sea necesario más).
-    3. Si el usuario te pregunta sobre temas que no tienen nada que ver con agenda, tiempo o productividad, recuérdale amablemente que tu especialidad es el calendario.
-    4. NO generes JSON ni código. Solo texto plano.
+
+def chat_node(state: dict) -> dict:
+    now = datetime.now(LOCAL_TZ)
+    dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+    meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+    
+    fecha_hoy = f"{dias[now.weekday()]}, {now.day} de {meses[now.month - 1]} de {now.year}"
+
+    prompt = f"""
+    INFORMACIÓN DE CONTEXTO OBLIGATORIA (LA VERDAD ABSOLUTA):
+    Hoy es: {fecha_hoy}.
+
+    Tu objetivo es conversar de forma amable, breve y servicial.
+
+    Reglas CRÍTICAS:
+    1. SI EL USUARIO PREGUNTA QUÉ DÍA ES HOY: Responde INMEDIATAMENTE con la fecha proporcionada arriba ({fecha_hoy}). NO DIGAS que no lo sabes. NO BUSQUES en el calendario. Tú YA SABES qué día es porque te lo acabo de decir.
+    2. Mantén un tono profesional pero cercano.
+    3. Tus respuestas deben ser concisas (máximo 2 frases).
+    4. Si el usuario te pregunta sobre temas que no tienen nada que ver con agenda, tiempo o productividad, recuérdale amablemente que tu especialidad es el calendario.
+    5. Si el usuario te pregunta por algo que parece ofensivo o peligroso recuérdale amablemente que tu especialidad es el calendario y que no puedes responder a esto.    
+    6. NO generes JSON. Solo texto conversacional.
     """
-    final_prompt = f"{prompt}\n\nUsuario: {user_input}"
+    final_prompt = f"{prompt}\n\nUsuario: {state['input_user']}"
     response = generar_respuesta(final_prompt).strip()
+    
     return {"api_response_list": [response]}
+
+
 
 
 # GRAFO

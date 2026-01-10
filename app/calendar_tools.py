@@ -9,131 +9,238 @@ svc = get_service()
 
 LOCAL_TZ = ZoneInfo("Europe/Madrid")
 
+# def create_event(
+#     service=svc, summary=None,
+#     start_date=None, end_date=None,
+#     start_time=None, end_time=None,
+#     description="", colorId="7",
+#     visibility="default", transparency="opaque",
+#     location="", attendees=None,
+#     default_reminder=True, reminder=None,
+#     zone="Europe/Madrid", recurrence=None,
+#     calendar_id="primary", attachments=None,
+#     conference=False, source=None,
+#     send_updates="none"
+# ):
+#     try:
+#         if not start_date:
+#             start_date = datetime.now(LOCAL_TZ).date().isoformat()
+        
+#         event = {"summary": summary}
+
+#         # Fechas y horas
+#         if end_date and start_time and end_time:
+#             start_dt = datetime.strptime(f"{start_date} {start_time}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
+#             end_dt = datetime.strptime(f"{end_date} {end_time}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
+#             event["start"] = {"dateTime": start_dt.isoformat(), "timeZone": "Europe/Madrid"}
+#             event["end"] = {"dateTime": end_dt.isoformat(), "timeZone": "Europe/Madrid"}
+
+#         elif start_time and not end_time and not end_date:
+#             inicio = datetime.strptime(f"{start_date} {start_time}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
+#             fin = inicio + timedelta(hours=1)
+#             event["start"] = {"dateTime": inicio.isoformat(), "timeZone": "Europe/Madrid"}
+#             event["end"] = {"dateTime": fin.isoformat(), "timeZone": "Europe/Madrid"}
+
+#         elif end_date and not start_time and not end_time:
+#             event["start"] = {"date": start_date}
+#             event["end"] = {"date": end_date}
+
+#         else:
+#             end_date = (datetime.fromisoformat(start_date) + timedelta(days=1)).date().isoformat()
+#             event["start"] = {"date": start_date}
+#             event["end"] = {"date": end_date}
+
+#     except ValueError:
+#             return {
+#                 "response": f"Error: La fecha u hora indicada no es válida.",
+#                 "undo_info": None
+#             }
+
+#     # Resto igual
+#     if description: event["description"] = description
+#     if location: event["location"] = location
+#     if colorId: event["colorId"] = str(colorId)
+#     if visibility: event["visibility"] = visibility
+#     if transparency: event["transparency"] = transparency
+#     if recurrence: event["recurrence"] = recurrence
+#     if attendees: event["attendees"] = [{"email": m} for m in attendees]
+#     event["reminders"] = (
+#         {"useDefault": True} if default_reminder else
+#         {"useDefault": False, "overrides": reminder or []}
+#     )
+#     if attachments: event["attachments"] = attachments
+#     if conference:
+#         event["conferenceData"] = {
+#             "createRequest": {
+#                 "requestId": str(uuid.uuid4()),
+#                 "conferenceSolutionKey": {"type": "hangoutsMeet"}
+#             }
+#         }
+#     if source: event["source"] = source
+
+#     params_insert = {
+#         "calendarId": calendar_id,
+#         "body": event,
+#         "sendUpdates": send_updates
+#     }
+#     if conference: params_insert["conferenceDataVersion"] = 1
+#     if attachments: params_insert["supportsAttachments"] = True
+
+#     try:
+#         created = service.events().insert(**params_insert).execute()
+#         event_id = created['id']
+
+#         undo_info = UndoableAction(
+#             operation="create_event", 
+#             calendarId=calendar_id,
+#             eventId=event_id,
+#             previous_body=None
+#         )
+
+#         return {
+#             "response": f"Se ha creado el evento “{summary}” correctamente.",
+#             "undo_info": undo_info
+#         }
+#     except Exception as e:
+#         print(f"[create_event] Error técnico: {e}")
+#         return {"response": "Lo siento, no pude crear el evento. Por favor, inténtalo de nuevo.", "undo_info": None}
+    
 def create_event(
-    service=svc, summary=None,
-    start_date=None, end_date=None,
-    start_time=None, end_time=None,
-    description="", colorId="7",
-    visibility="default", transparency="opaque",
-    location="", attendees=None,
-    default_reminder=True, reminder=None,
-    zone="Europe/Madrid", recurrence=None,
-    calendar_id="primary", attachments=None,
-    conference=False, source=None,
+    service=svc, summary=None, start_date=None, end_date=None, 
+    start_time=None, end_time=None, description="", colorId="7", 
+    visibility="default", transparency="opaque", location="", attendees=None, 
+    default_reminder=True, reminder=None, zone="Europe/Madrid", recurrence=None, 
+    calendar_id="primary", attachments=None, conference=False, source=None, 
     send_updates="none"
 ):
-    if not start_date:
-        start_date = datetime.now(LOCAL_TZ).date().isoformat()
-    
-    event = {"summary": summary}
-
-    # Fechas y horas
-    if end_date and start_time and end_time:
-        start_dt = datetime.strptime(f"{start_date} {start_time}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
-        end_dt = datetime.strptime(f"{end_date} {end_time}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
-        event["start"] = {"dateTime": start_dt.isoformat(), "timeZone": "Europe/Madrid"}
-        event["end"] = {"dateTime": end_dt.isoformat(), "timeZone": "Europe/Madrid"}
-
-    elif start_time and not end_time and not end_date:
-        inicio = datetime.strptime(f"{start_date} {start_time}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
-        fin = inicio + timedelta(hours=1)
-        event["start"] = {"dateTime": inicio.isoformat(), "timeZone": "Europe/Madrid"}
-        event["end"] = {"dateTime": fin.isoformat(), "timeZone": "Europe/Madrid"}
-
-    elif end_date and not start_time and not end_time:
-        event["start"] = {"date": start_date}
-        event["end"] = {"date": end_date}
-
-    else:
-        end_date = (datetime.fromisoformat(start_date) + timedelta(days=1)).date().isoformat()
-        event["start"] = {"date": start_date}
-        event["end"] = {"date": end_date}
-
-    # Resto igual
-    if description: event["description"] = description
-    if location: event["location"] = location
-    if colorId: event["colorId"] = str(colorId)
-    if visibility: event["visibility"] = visibility
-    if transparency: event["transparency"] = transparency
-    if recurrence: event["recurrence"] = recurrence
-    if attendees: event["attendees"] = [{"email": m} for m in attendees]
-    event["reminders"] = (
-        {"useDefault": True} if default_reminder else
-        {"useDefault": False, "overrides": reminder or []}
-    )
-    if attachments: event["attachments"] = attachments
-    if conference:
-        event["conferenceData"] = {
-            "createRequest": {
-                "requestId": str(uuid.uuid4()),
-                "conferenceSolutionKey": {"type": "hangoutsMeet"}
-            }
-        }
-    if source: event["source"] = source
-
-    params_insert = {
-        "calendarId": calendar_id,
-        "body": event,
-        "sendUpdates": send_updates
-    }
-    if conference: params_insert["conferenceDataVersion"] = 1
-    if attachments: params_insert["supportsAttachments"] = True
-
     try:
-        created = service.events().insert(**params_insert).execute()
-        event_id = created['id']
+        # --- 1. LÓGICA DE FECHAS ---
+        if not start_date:
+            start_date = datetime.now(LOCAL_TZ).date().isoformat()
+        
+        event = {"summary": summary}
 
+        # Estandarizamos: siempre crearemos start_dt y end_dt si es posible
+        if end_date and start_time and end_time:
+            start_dt = datetime.strptime(f"{start_date} {start_time}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
+            end_dt = datetime.strptime(f"{end_date} {end_time}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
+            event["start"] = {"dateTime": start_dt.isoformat(), "timeZone": "Europe/Madrid"}
+            event["end"] = {"dateTime": end_dt.isoformat(), "timeZone": "Europe/Madrid"}
+
+        elif start_time and not end_time and not end_date:
+            # CORRECCIÓN TEST 5: Usamos 'start_dt' en vez de 'inicio'
+            start_dt = datetime.strptime(f"{start_date} {start_time}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
+            end_dt = start_dt + timedelta(hours=1)
+            event["start"] = {"dateTime": start_dt.isoformat(), "timeZone": "Europe/Madrid"}
+            event["end"] = {"dateTime": end_dt.isoformat(), "timeZone": "Europe/Madrid"}
+
+        elif end_date and not start_time and not end_time:
+            # Validamos formato
+            datetime.fromisoformat(start_date)
+            datetime.fromisoformat(end_date)
+            event["start"] = {"date": start_date}
+            event["end"] = {"date": end_date}
+
+        else:
+            # Validamos start_date y calculamos end_date
+            dt_start = datetime.fromisoformat(start_date)
+            end_date_str = (dt_start + timedelta(days=1)).date().isoformat()
+            event["start"] = {"date": start_date}
+            event["end"] = {"date": end_date_str}
+
+        # --- 2. PARÁMETROS ---
+        if description: event["description"] = description
+        if location: event["location"] = location
+        if colorId: event["colorId"] = str(colorId)
+        if visibility: event["visibility"] = visibility
+        if transparency: event["transparency"] = transparency
+        if recurrence: event["recurrence"] = recurrence
+        if attendees: event["attendees"] = [{"email": m} for m in attendees]
+        
+        event["reminders"] = (
+            {"useDefault": True} if default_reminder else
+            {"useDefault": False, "overrides": reminder or []}
+        )
+        
+        if attachments: event["attachments"] = attachments
+        if conference:
+            event["conferenceData"] = {
+                "createRequest": {
+                    "requestId": str(uuid.uuid4()),
+                    "conferenceSolutionKey": {"type": "hangoutsMeet"}
+                }
+            }
+        if source: event["source"] = source
+
+        params_insert = {
+            "calendarId": calendar_id,
+            "body": event,
+            "sendUpdates": send_updates
+        }
+        if conference: params_insert["conferenceDataVersion"] = 1
+        if attachments: params_insert["supportsAttachments"] = True
+
+        # --- 3. EJECUCIÓN API ---
+        created = service.events().insert(**params_insert).execute()
+        
         undo_info = UndoableAction(
             operation="create_event", 
-            calendarId=calendar_id,
-            eventId=event_id,
+            calendarId=calendar_id, 
+            eventId=created['id'], 
             previous_body=None
         )
-
+        print("3")
         return {
             "response": f"Se ha creado el evento “{summary}” correctamente.",
             "undo_info": undo_info
         }
+    
     except Exception as e:
-        print(f"[create_event] Error técnico: {e}")
-        return {"response": "Lo siento, no pude crear el evento. Por favor, inténtalo de nuevo.", "undo_info": None}
-
-
-
+        error_msg = str(e)
+        if "out of range" in error_msg or "match format" in error_msg:
+            return{"response": "Error: La fecha u hora indicada no es válida.", "undo_info": None}
+        else:
+            return {"response": f"Hubo un error técnico al crear el evento: {str(e)}", "undo_info": None}
+    
 
 def get_id(summary, start_date=None, end_date=None, calendar_id="primary", service=svc):
-    user_gave_date = start_date is not None
+    try:
+        user_gave_date = start_date is not None
 
-    if not start_date:
-        start_date = datetime.now(LOCAL_TZ).isoformat()
-    elif len(start_date) == 10:
-        start_date = datetime.fromisoformat(start_date).replace(tzinfo=LOCAL_TZ).isoformat()
+        if not start_date:
+            start_date = datetime.now(LOCAL_TZ).isoformat()
+        elif len(start_date) == 10:
+            start_date = datetime.fromisoformat(start_date).replace(tzinfo=LOCAL_TZ).isoformat()
 
-    if not end_date:
-        end_date = (datetime.now(LOCAL_TZ) + timedelta(days=365)).isoformat()
-    elif len(end_date) == 10:
-        end_date = datetime.fromisoformat(end_date).replace(tzinfo=LOCAL_TZ).isoformat()
+        if not end_date:
+            end_date = (datetime.now(LOCAL_TZ) + timedelta(days=365)).isoformat()
+        elif len(end_date) == 10:
+            end_date = datetime.fromisoformat(end_date).replace(tzinfo=LOCAL_TZ).isoformat()
 
-    events_result = service.events().list(
-        calendarId=calendar_id,
-        timeMin=start_date,
-        timeMax=end_date,
-        maxResults=2500,
-        singleEvents=True,
-        orderBy="startTime"
-    ).execute()
+        events_result = service.events().list(
+            calendarId=calendar_id,
+            timeMin=start_date,
+            timeMax=end_date,
+            maxResults=2500,
+            singleEvents=True,
+            orderBy="startTime"
+        ).execute()
 
-    events = events_result.get("items", [])
+        events = events_result.get("items", [])
 
-    for e in events:
-        event_start = e["start"].get("dateTime", e["start"].get("date"))
-        if e.get("summary", "").lower() == summary.lower():
-            if user_gave_date:
-                if event_start[:10] == start_date[:10]:
+        for e in events:
+            event_start = e["start"].get("dateTime", e["start"].get("date"))
+            if e.get("summary", "").lower() == summary.lower():
+                if user_gave_date:
+                    if event_start[:10] == start_date[:10]:
+                        return e["id"]
+                else:
                     return e["id"]
-            else:
-                return e["id"]
 
+    except ValueError:
+        print("[get_id] Error: Se intentó buscar con una fecha inválida.")
+        return None  # Si la fecha es mala, simplemente decimos "no encontré el ID"
+    
     return None  
 
 
@@ -249,18 +356,24 @@ def delete_date_events(start_date, end_date, calendar_id="primary", service=svc)
 
 
 def get_events(summary=None, start_date=None, end_date=None, calendar_id="primary", service=svc, max=2500):
-    if not start_date:
-        start_date = datetime.now(LOCAL_TZ).isoformat()
-    elif len(start_date) == 10:
-        start_date = datetime.fromisoformat(start_date).replace(tzinfo=LOCAL_TZ).isoformat()
-    
-
-    if not end_date:
-        end_date = (datetime.now(LOCAL_TZ) + timedelta(days=30)).isoformat()
-    elif len(end_date) == 10:
-        dt_end = datetime.fromisoformat(end_date)
-        end_date = dt_end.replace(hour=23, minute=59, second=59, tzinfo=LOCAL_TZ).isoformat()
+    try:
+        if not start_date:
+            start_date = datetime.now(LOCAL_TZ).isoformat()
+        elif len(start_date) == 10:
+            start_date = datetime.fromisoformat(start_date).replace(tzinfo=LOCAL_TZ).isoformat()
         
+
+        if not end_date:
+            end_date = (datetime.now(LOCAL_TZ) + timedelta(days=30)).isoformat()
+        elif len(end_date) == 10:
+            dt_end = datetime.fromisoformat(end_date)
+            end_date = dt_end.replace(hour=23, minute=59, second=59, tzinfo=LOCAL_TZ).isoformat()
+
+    except ValueError:
+        return {
+            "response": f"Error: La fecha indicada no es válida.",
+            "undo_info": None
+        }
 
     query = {"calendarId": calendar_id, "timeMin": start_date, "timeMax": end_date,
              "maxResults": max, "singleEvents": True, "orderBy": "startTime"}
@@ -342,58 +455,68 @@ def patch_event(summary, start_date=None, changes=None, service=svc):
             "undo_info": undo_info
         }
     except Exception as e:
-        print(f"[patch_event] Error técnico: {e}")
-        return {"response": "Lo siento, no pude actualizar el evento. Por favor, inténtalo de nuevo.", "undo_info": None}
-
+        error_msg = str(e)
+        if "out of range" in error_msg or "match format" in error_msg:
+            return{"response": "Error: La fecha u hora indicada no es válida.", "undo_info": None}
+        else:
+            return {"response": f"Hubo un error técnico al modificar el evento: {str(e)}", "undo_info": None}
 
 
 def duplicate_event(service=svc, summary=None, original_date=None, new_date=None, new_time=None, calendar_id="primary"):
-    if not summary or not new_date:
-        return {
-            "response": "Debes indicar el nombre del evento original y la nueva fecha.",
-            "undo_info": None
-        }
+    try:
+        if not summary or not new_date:
+            return {
+                "response": "Debes indicar el nombre del evento original y la nueva fecha.",
+                "undo_info": None
+            }
 
-    if not original_date:
-        original_date = datetime.now(LOCAL_TZ).isoformat()
+        if not original_date:
+            original_date = datetime.now(LOCAL_TZ).isoformat()
 
-    eventos = service.events().list(
-        calendarId=calendar_id,
-        timeMin=original_date,
-        maxResults=5,
-        singleEvents=True,
-        orderBy="startTime",
-        q=summary
-    ).execute().get("items", [])
-
-    if not eventos:
-        return {
-            "response": f"No se encontró el evento “{summary}” para duplicar.",
-            "undo_info": None
-        }
-
-    original = eventos[0]
-    if not new_time:
-        new_time = original["start"].get("dateTime", original["start"].get("date", "00:00"))[11:16]
-
-    result_package = create_event(
-        service=service,
-        summary=original.get("summary", "(sin título)"),
-        start_date=new_date,
-        start_time=new_time,
-        description=original.get("description", ""),
-        location=original.get("location", ""),
-        colorId=original.get("colorId", "1"),
-        attendees=[a["email"] for a in original.get("attendees", [])],
-        recurrence=original.get("recurrence"),
-        attachments=original.get("attachments"),
-        source=original.get("source"),
-        calendar_id=calendar_id
-    )
-
-    if result_package.get("undo_info"):
-        result_package["response"] = f"He duplicado el evento “{summary}” correctamente en la fecha {new_date}."
+        eventos = service.events().list(
+            calendarId=calendar_id,
+            timeMin=original_date,
+            maxResults=5,
+            singleEvents=True,
+            orderBy="startTime",
+            q=summary
+        ).execute().get("items", [])
     
+    
+        if not eventos:
+            return {
+                "response": f"No se encontró el evento “{summary}” para duplicar.",
+                "undo_info": None
+            }
+
+        original = eventos[0]
+        if not new_time:
+            new_time = original["start"].get("dateTime", original["start"].get("date", "00:00"))[11:16]
+
+        result_package = create_event(
+            service=service,
+            summary=original.get("summary", "(sin título)"),
+            start_date=new_date,
+            start_time=new_time,
+            description=original.get("description", ""),
+            location=original.get("location", ""),
+            colorId=original.get("colorId", "1"),
+            attendees=[a["email"] for a in original.get("attendees", [])],
+            recurrence=original.get("recurrence"),
+            attachments=original.get("attachments"),
+            source=original.get("source"),
+            calendar_id=calendar_id
+        )
+
+        if result_package.get("undo_info"):
+            result_package["response"] = f"He duplicado el evento “{summary}” correctamente en la fecha {new_date}."
+    
+    except ValueError:
+        return {
+            "response": f"Error: La fecha indicada no es válida.",
+            "undo_info": None
+        }
+        
     return result_package
 
 

@@ -2,13 +2,12 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 zona_local = ZoneInfo("Europe/Madrid")
-fecha_actual = datetime.now(zona_local).strftime("%Y-%m-%d")
 
 
 def tool_prompt():
+  now = datetime.now(zona_local).strftime("%Y-%m-%d")
   p = """
   Eres un traductor de lenguaje natural a funciones Python de un agente de calendario.
-
   Formato de salida:
   {
     "function": "<create_event | delete_event | delete_date_events| duplicate_event | patch_event | get_events>",
@@ -87,6 +86,7 @@ def tool_prompt():
   - No inventes horas ni fechas si el usuario no las dice.
   - Si no dice hora ni "todo el día", se considera evento de día completo.
   - Los campos de tiempo usan formato 24h, sin segundos ni zona horaria.
+  - No corrijas horas, si no tiene sentido ya dará un error
 
   Para patch_event:
   - Cuando modifiques campos de tiempo (start/end), usa SIEMPRE el formato ISO completo UTC (RFC3339):
@@ -151,6 +151,16 @@ def tool_prompt():
   "parameters": {
     "start_date": "2025-11-07",
     "start_time": "15:00",
+  }
+  }
+
+  Usuario: Crea un evento el 20 de noviembre a las 35
+  Respuesta: 
+  {
+  "function": "create_event",
+  "parameters": {
+    "start_date": "2026-11-20",
+    "start_time": "35:00",
   }
   }
 
@@ -363,7 +373,7 @@ def tool_prompt():
 
   prompt = f"""
   IMPORTANTE:
-  Hoy es {fecha_actual}.
+  Debes saber que hoy es {now}.
   Usa esta fecha como referencia para interpretar expresiones relativas
   como "hoy", "mañana", "el viernes", etc.
   Debes usar la fecha real del sistema en el momento de ejecución, no la de los ejemplos.
@@ -379,10 +389,11 @@ def tool_prompt():
   return prompt
 
 def reasoning_prompt():
+  now = datetime.now(zona_local).strftime("%Y-%m-%d")
   prompt = f"""
   Tu tarea es traducir la consulta del usuario a un objeto JSON estructurado para ejecutar herramientas de lectura o análisis.
 
-  FECHA Y HORA ACTUAL: {fecha_actual}
+  FECHA Y HORA ACTUAL: {now}
   ZONA HORARIA: Europe/Madrid
 
   FUNCIONES DISPONIBLES:

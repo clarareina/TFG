@@ -16,17 +16,25 @@ except ImportError:
 
 TEST_CASES = [
     # Nivel 1: Basic
-    "Agendar una reunión con el tutor mañana a las 10:00.",
-    "¿Qué tengo en la agenda para hoy?",
-    "Borrar la reunión con el tutor.",
+    # "Agendar una reunión con el tutor mañana a las 10:00.",
+    # "Apunta comida de empresa mañana de 14 a 17",
+    # "¿Qué tengo en la agenda para hoy?",
+    # "Borrar la comida de empresa.",
     
-    # Nivel 2: Logic
-    "Mueve la reunión del tutor a las 12:00.",
-    "Programa un descanso de 30 minutos dentro de 2 horas.",
+    # # Nivel 2: Logic
+    # "Duplica la reunión con el tutor mañana a las 12:00.",
+    # "Mueve la reunión con el tutor a las 11:00.",
+    # "Programa un descanso de 30 minutos dentro de 2 horas.",
     
-    # Nivel 3: Reasoning / Edge Cases
-    "¿Tengo algún hueco libre el martes por la tarde?",
+    # # Nivel 3: Reasoning / Edge Cases
+    # "¿Tengo algún hueco libre el martes por la tarde?",
     "Agendar cita el 30 de febrero.", 
+    "Agendar una reunión con el tutor mañana a las 32:00.",
+    "Busca el mejor hueco para cena con mis padres esta semana.",
+    "Busca un hueco para una cena el 30 de febrero",
+    "¿Qué día es hoy?",
+    "¿Cuántos días quedan para el 30 de enero?",
+    "Manda un correo a Daniela"
 ]
 
 # "Test Suite" agrupa todas las pruebas
