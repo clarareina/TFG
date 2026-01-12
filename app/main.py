@@ -51,8 +51,9 @@ class UserRequest(BaseModel):
     user_id: Optional[str] = "default_user"  # Para futura memoria por usuario
 
 class AgentResponse(BaseModel):
-    status: str
+    status: str # "complete", "waiting", "error"
     response: str
+    suggested_slots: Optional[list] = None #solo si status = waiting
 
 
 # Endpoints (Rutas)
@@ -76,8 +77,8 @@ async def chat_endpoint(request: UserRequest):
         registrar_log(request.user_id, request.query, agent_result) 
 
         return AgentResponse(
-            status="success",
-            response=str(agent_result)
+            status="complete",
+            response=str(agent_result.get("final_response", "Sin respuesta"))
         )
 
     except Exception as e:

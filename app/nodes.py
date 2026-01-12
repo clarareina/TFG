@@ -5,6 +5,7 @@ from .prompts import tool_prompt, reasoning_prompt, analysis_prompt
 from .services.gemini_client import generar_respuesta
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import StateGraph
+from langgraph.types import interrupt
 from app import calendar_tools
 from .state import AgentState, VerificationResult
 from datetime import datetime, timedelta
@@ -453,13 +454,21 @@ def get_user_decision(state: AgentState) -> dict:
     Imprime la propuesta Y LUEGO pausa el flujo.
     """    
     messages = state.get("api_response_list", [])
-    if messages:
-        print("\n" + messages[0]) 
+    # if messages:
+    #     print("\n" + messages[0]) 
     
-    user_input = input("> ").strip().lower()
-    state["user_choice"] = user_input
+    # user_input = input("> ").strip().lower()
+    # state["user_choice"] = user_input
     
-    return state
+    # return state
+    suggested_slots = state.get("suggested_slots", [])
+    user_input = interrupt({
+        "messages": messages[0] if messages else "",
+        "suggested_slots": suggested_slots
+    })
+    
+    # Cuando el flujo se reanuda, user_input contiene la respuesta del usuario
+    return {"user_choice": user_input.strip().lower() if isinstance(user_input, str) else user_input}
 
 def process_user_decision(state: AgentState) -> dict:
     user_choice = state.get("user_choice", '').lower()
