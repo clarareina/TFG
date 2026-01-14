@@ -5,7 +5,7 @@ from langgraph.types import Command
 config = {"configurable": {"thread_id": "conversation_1"}}
 
 
-def run_agent(user_input: str) -> dict:
+def run_agent(user_input: str, user_id: str) -> dict:
     """
     Ejecuta el agente. Puede devolver:
     - {"status": "complete", "response": "..."} si terminó
@@ -33,7 +33,7 @@ def run_agent(user_input: str) -> dict:
     
     else:
         # Nueva petición - iniciar el flujo
-        inputs = {"input_user": user_input}
+        inputs = {"input_user": user_input, "user_id": user_id}
         result = None
         
         for event in app.stream(inputs, config=config):

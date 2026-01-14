@@ -1,12 +1,26 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import ChatInterface from './components/ChatInterface'
 import CalendarView from './components/CalendarInterface'
 import UpcomingEvents from './components/EventsInterface'
 import StatsInterface from './components/StatsInterface'
 
+// Definimos el usuario que usaremos (esto simula el login)
+// IMPORTANTE: Asegúrate de que este email coincide con el que usaste en el Backend
+// const USUARIO_SESION = "usuario_demo@gmail.com"
+const USUARIO_SESION = "user"
+
 function App() {
   const [isCalendarLoading, setIsCalendarLoading] = useState(true)
+  
+  // Estado para guardar el usuario actual.
+  // Inicialmente es null, pero en cuanto carga la app, le asignamos el usuario.
+  const [userId, setUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    // Simulamos que el usuario inicia sesión al entrar
+    setUserId(USUARIO_SESION)
+  }, [])
 
   // PANTALLA PRINCIPAL (DASHBOARD)
   return (
@@ -17,7 +31,8 @@ function App() {
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', alignItems: 'center' }}>
           <h3 style={{ margin: 0 }}>Asistente</h3>
         </div>
-        <ChatInterface />
+        {/* Pasamos el userId al Chat para que sepa quién habla */}
+        <ChatInterface userId={userId} />
       </div>
 
       {/* COLUMNA 2: CALENDARIO */}
@@ -52,8 +67,12 @@ function App() {
         </div>
 
         {/* EL CALENDARIO */}
+        {/* Pasamos userId también al calendario */}
         <div style={{ flex: 1, minHeight: 0 }}>
-          <CalendarView onLoadingChange={setIsCalendarLoading} />
+          <CalendarView 
+             userId={userId} 
+             onLoadingChange={setIsCalendarLoading} 
+          />
         </div>
       </div>
 
@@ -64,14 +83,16 @@ function App() {
         <div className="card" style={{ flex: 5, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ margin: '0 0 15px 0', flexShrink: 0 }}>Próximos Eventos</h3>
           <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-            <UpcomingEvents />
+            {/* Pasamos userId a la lista de eventos */}
+            <UpcomingEvents userId={userId} />
           </div>
         </div>
 
         {/* ESTADÍSTICAS */}
         <div className="card" style={{ flex: 5, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ margin: '0 0 10px 0', flexShrink: 0 }}>Recomendaciones</h3>
-          <StatsInterface />
+          {/* AQUI ESTÁ LA CLAVE: Conectamos Stats con el usuario */}
+          <StatsInterface userId={userId} />
         </div>
 
       </div>

@@ -1,13 +1,19 @@
 import { useState, useRef, useEffect } from 'react'
 import type { KeyboardEvent } from 'react'
 
+// 1. [NUEVO] Definimos que este componente recibe userId
+interface ChatProps {
+  userId: string | null;
+}
+
 interface Message {
   id: number
   text: string
   sender: 'user' | 'bot'
 }
 
-const ChatInterface = () => {
+// 2. [CAMBIO] Recibimos userId aquí
+const ChatInterface = ({ userId }: ChatProps) => {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false) // Para saber si está "pensando"
   const [messages, setMessages] = useState<Message[]>([
@@ -34,7 +40,8 @@ const ChatInterface = () => {
   useEffect(scrollToBottom, [messages])
 
   const handleSend = async () => {
-    if (!input.trim()) return
+    // [CAMBIO] Si no hay texto O no hay usuario, no hacemos nada
+    if (!input.trim() || !userId) return
 
     // 1. Guardamos el texto y limpiamos el input
     const userText = input
@@ -56,7 +63,7 @@ const ChatInterface = () => {
         },
         body: JSON.stringify({
           query: userText,
-          user_id: "user"
+          user_id: userId // [CAMBIO] Usamos el usuario real, no "user" a fuego
         }),
       })
 
@@ -131,9 +138,9 @@ const ChatInterface = () => {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={isLoading} // Bloqueamos input mientras piensa
+          disabled={isLoading || !userId} // [CAMBIO] Bloqueamos si carga O si no hay usuario
         />
-        <button onClick={handleSend} disabled={isLoading}>
+        <button onClick={handleSend} disabled={isLoading || !userId}>
           ➤
         </button>
       </div>

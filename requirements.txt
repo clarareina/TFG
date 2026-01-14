@@ -1,6 +1,8 @@
 # API de Google (Calendar + Auth)
-google-api-python-client
-google-auth-oauthlib
+google-api-python-client #permite hablar con Calendar, Drive, Gmail, etc.
+google-auth-oauthlib #abrir la ventanita del navegador para login
+google-auth-httplib2 #usa ese login para enviar las peticiones
+sqlalchemy #ORM (Object Relational Mapper). Traduce código Python a SQL
 
 # Gemini
 google-generativeai

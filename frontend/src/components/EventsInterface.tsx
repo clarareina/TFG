@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
 
+// 1. [NUEVO] Definimos la interfaz de las props
+interface EventsProps {
+    userId: string | null;
+}
+
 interface CalendarEvent {
     id: string
     summary: string
@@ -8,9 +13,10 @@ interface CalendarEvent {
     colorId?: string
 }
 
-const UpcomingEvents = () => {
+// 2. [CAMBIO] Recibimos userId aquí
+const UpcomingEvents = ({ userId }: EventsProps) => {
     const [events, setEvents] = useState<CalendarEvent[]>([])
-    const [isLoading, setIsLoading] = useState(true)
+    const [isLoading, setIsLoading] = useState(false) // Empezamos en false hasta tener usuario
 
     // Mapa de colores de Google Calendar
     const googleColors: { [key: string]: string } = {
@@ -20,8 +26,15 @@ const UpcomingEvents = () => {
     }
 
     const fetchEvents = () => {
+        // [CAMBIO] Si no hay usuario, limpiamos y no hacemos fetch
+        if (!userId) {
+            setEvents([])
+            return
+        }
+
         setIsLoading(true)
-        fetch('http://localhost:8000/api/calendar/events')
+        // [CAMBIO] Añadimos el user_id a la URL
+        fetch(`http://localhost:8000/api/calendar/events?user_id=${userId}`)
             .then(res => res.json())
             .then((data: CalendarEvent[]) => {
                 const now = new Date()
@@ -46,7 +59,7 @@ const UpcomingEvents = () => {
 
                 setEvents(upcomingEvents)
             })
-            .catch(() => { })
+            .catch(() => { setEvents([]) })
             .finally(() => setIsLoading(false))
     }
 
@@ -64,7 +77,9 @@ const UpcomingEvents = () => {
         return () => {
             window.removeEventListener('calendarUpdated', handleCalendarUpdate)
         }
-    }, [])
+    // [CAMBIO] Importante: Añadir userId a las dependencias
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId])
 
     const formatDate = (evt: CalendarEvent) => {
         const date = new Date(evt.start.dateTime || evt.start.date || '')
@@ -82,6 +97,15 @@ const UpcomingEvents = () => {
         return colorId ? (googleColors[colorId] || '#039BE5') : '#039BE5'
     }
 
+    // Renderizado condicional según el estado del usuario
+    if (!userId) {
+        return (
+            <div style={{ padding: '20px', textAlign: 'center', color: '#9CA3AF', fontSize: '0.9rem' }}>
+                Esperando inicio de sesión...
+            </div>
+        )
+    }
+
     return (
         <div style={{
             display: 'flex',
@@ -92,11 +116,11 @@ const UpcomingEvents = () => {
             minHeight: 0
         }}>
             {isLoading ? (
-                <p style={{ color: '#9CA3AF', textAlign: 'center', marginTop: '20px' }}>
+                <p style={{ color: '#9CA3AF', textAlign: 'center', marginTop: '20px', fontSize: '0.9rem' }}>
                     Cargando eventos...
                 </p>
             ) : events.length === 0 ? (
-                <p style={{ color: '#888', textAlign: 'center', marginTop: '20px' }}>
+                <p style={{ color: '#888', textAlign: 'center', marginTop: '20px', fontSize: '0.9rem' }}>
                     No hay eventos en los próximos 7 días
                 </p>
             ) : (

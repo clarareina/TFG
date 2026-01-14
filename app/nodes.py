@@ -157,17 +157,23 @@ def tool_executor(state: AgentState) -> dict:
     """Ejecuta las acciones indicadas en el JSON interpretado."""
     action_list = state.get('structured_json_list', [])
     current_undo_state = state.get('last_undoable_action')
+    current_user_id = state.get('user_id')
     execution_results = []
 
     for action in action_list:
         function_name = action.get("function")
         parameters = action.get("parameters", {})
+        parameters["user_id"] = current_user_id
 
         if function_name in FUNCTION_MAP:
             actual_function = FUNCTION_MAP[function_name]
 
             if function_name == "undo_last_action":
-                parameters = {"action_to_undo": current_undo_state}
+                parameters = {
+                    "action_to_undo": current_undo_state, 
+                    "user_id": current_user_id
+                }
+                
 
             action_result = actual_function(**parameters)
             if isinstance(action_result, dict):
@@ -191,6 +197,7 @@ def reasoning_executor(state: dict) -> dict:
     Mapea los parámetros JSON a los tipos de datos exactos que piden las funciones Python.
     """
     action_list = state.get('structured_json_list', [])
+    current_user_id = state.get('user_id') 
     execution_results = []
 
     for action in action_list:
@@ -216,6 +223,7 @@ def reasoning_executor(state: dict) -> dict:
                 dt_max = datetime.strptime(end_dt_str, "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ).isoformat()
 
                 result = calendar_tools.find_free_slots(
+                    user_id=current_user_id,
                     duration=duration_td,
                     datetime_min=dt_min,
                     datetime_max=dt_max
@@ -224,6 +232,7 @@ def reasoning_executor(state: dict) -> dict:
 
             # CASO 2: OBTENER EVENTOS
             elif function_name == "get_events":
+                parameters["user_id"] = current_user_id
                 result = calendar_tools.get_events(**parameters)
                 execution_results.append(result)
 
@@ -258,6 +267,7 @@ def verification_node(state: AgentState) -> dict:
     Verifica si hay conflictos horarios antes de crear, duplicar o editar.
     """
     action_list = state.get('structured_json_list', [])
+    current_user_id = state.get('user_id') 
     if not action_list or len(action_list) > 1:
         return {}
         
@@ -347,6 +357,7 @@ def verification_node(state: AgentState) -> dict:
         return {}
     
     scan_result_package = calendar_tools.get_events(
+        user_id=current_user_id, 
         start_date=check_start, 
         end_date=check_end,
         max=5 
@@ -374,6 +385,7 @@ def propose_node(state:AgentState) -> dict:
     """
     Tras un conflicto, llama a find_free_slots y propone alternativas.
     """
+    current_user_id = state.get('user_id') 
     pending_actions = state.get("pending_action")
     
     parameters = pending_actions.get("parameters", {})
@@ -406,7 +418,9 @@ def propose_node(state:AgentState) -> dict:
     #     duration_minutes = 60
 
     duration = timedelta(minutes=duration_minutes)
-    free_slots = calendar_tools.find_free_slots(duration=duration, datetime_min=start_dt.replace(tzinfo=LOCAL_TZ).isoformat())
+    free_slots = calendar_tools.find_free_slots(user_id=current_user_id, 
+                                                duration=duration, 
+                                                datetime_min=start_dt.replace(tzinfo=LOCAL_TZ).isoformat())
 
     if not free_slots:
         msg = f"Conflicto detectado para '{summary}'. No he encontrado huecos libres cercanos. ¿Quieres 'forzar' el evento o 'cancelar'?"

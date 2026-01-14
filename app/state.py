@@ -25,6 +25,7 @@ class AgentState(TypedDict):
     (Este es el "formulario" que viaja por el grafo)
         """
     input_user: str
+    user_id: str
 
     conversation_history: List[str]
 

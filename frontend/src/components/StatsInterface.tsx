@@ -13,39 +13,44 @@ interface Stats {
     freeSlots: number
 }
 
-const StatsInterface = () => {
+// 1. Definimos que este componente NECESITA recibir el ID del usuario
+interface StatsInterfaceProps {
+    userId: string | null; // Puede ser null si aún no se ha logueado
+}
+
+const StatsInterface = ({ userId }: StatsInterfaceProps) => {
     const [stats, setStats] = useState<Stats>({
         occupiedPercent: 0,
         freePercent: 100,
         freeSlots: 0
     })
-    const [recommendation, setRecommendation] = useState<string>('Cargando resumen...')
-    const [isLoading, setIsLoading] = useState(true)
+    const [recommendation, setRecommendation] = useState<string>('Esperando inicio de sesión...')
+    const [isLoading, setIsLoading] = useState(false) // Empezamos en false hasta que haya usuario
 
     // Función para formatear Markdown básico a HTML
     const formatMarkdown = (text: string): string => {
         return text
-            // Convertir **texto** a negrita
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-            // Convertir *texto* a cursiva
             .replace(/\*(.+?)\*/g, '<em>$1</em>')
-            // Convertir saltos de línea a <br>
             .replace(/\n/g, '<br>')
     }
 
-    // Constantes
-    const DIAS = 7 // Próximos 7 días incluyendo hoy
-    const HORAS_POR_DIA = 13 // De 8:00 a 21:00
-    const TOTAL_HORAS = DIAS * HORAS_POR_DIA // 91 horas
+    const DIAS = 7
+    const HORAS_POR_DIA = 13
+    const TOTAL_HORAS = DIAS * HORAS_POR_DIA
 
-    // Calcular estadísticas del gráfico
+    // Calcular estadísticas
     const calculateStats = () => {
-        fetch('http://localhost:8000/api/calendar/events')
+        // Si no hay usuario, no pedimos nada para evitar error 422
+        if (!userId) return 
+
+        // Pasamos el userId en la URL
+        fetch(`http://localhost:8000/api/calendar/events?user_id=${userId}`)
             .then(res => res.json())
             .then((data: CalendarEvent[]) => {
+                // ... (Toda tu lógica matemática sigue igual) ...
                 const now = new Date()
-                now.setHours(0, 0, 0, 0) // Inicio de hoy
-
+                now.setHours(0, 0, 0, 0)
                 const endDate = new Date(now)
                 endDate.setDate(now.getDate() + DIAS)
                 endDate.setHours(23, 59, 59, 999)
@@ -77,14 +82,18 @@ const StatsInterface = () => {
     }
 
     const fetchRecommendation = async () => {
+        if (!userId) return
+
         setIsLoading(true)
+        setRecommendation('Generando resumen personalizado...')
         try {
             const response = await fetch('http://127.0.0.1:8000/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     query: 'Dame una recomendación o resumen para los próximos 7 días por puntos. Responde directamente con la recomendación, sin introducciones, aclaraciones ni referencias a fuentes. Máximo 4 líneas.',
-                    user_id: 'stats_widget'
+                    // 2. AQUÍ ESTÁ LA CLAVE: Usamos el prop userId dinámico
+                    user_id: userId 
                 })
             })
 
@@ -102,17 +111,25 @@ const StatsInterface = () => {
     }
 
     const requestCount = useRef(0)
+    
+    // 3. El useEffect ahora vigila 'userId'. Si cambia el usuario, recarga todo.
     useEffect(() => {
-        calculateStats()
-        fetchRecommendation()
-
-        // Escuchar cuando el chat hace cambios en el calendario
-        const handleUpdate = () => {
-            console.log('[Stats] Actualizando estadísticas y recomendaciones...')
+        if (userId) {
             calculateStats()
-            requestCount.current += 1
-            if (requestCount.current % 5 === 0) {
-                fetchRecommendation()
+            fetchRecommendation()
+        } else {
+            setRecommendation("Por favor, inicia sesión para ver tus estadísticas.")
+            setStats({ occupiedPercent: 0, freePercent: 100, freeSlots: 0 })
+        }
+
+        const handleUpdate = () => {
+            if (userId) {
+                console.log('[Stats] Actualizando estadísticas...')
+                calculateStats()
+                requestCount.current += 1
+                if (requestCount.current % 5 === 0) {
+                    fetchRecommendation()
+                }
             }
         }
 
@@ -121,19 +138,18 @@ const StatsInterface = () => {
         return () => {
             window.removeEventListener('calendarUpdated', handleUpdate)
         }
-    }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId]) // <--- Importante: Si userId cambia, se ejecuta esto de nuevo
 
-    // SVG Donut Chart
+    // SVG Donut Chart logic (sin cambios)
     const radius = 40
     const circumference = 2 * Math.PI * radius
     const occupiedDash = (stats.occupiedPercent / 100) * circumference
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '12px' }}>
-
             {/* Gráfico y leyenda */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', marginTop: '10px' }}>
-
                 <svg width="100" height="100" viewBox="0 0 100 100">
                     <circle cx="50" cy="50" r={radius} fill="none" stroke="#60A5FA" strokeWidth="12" />
                     <circle
@@ -158,15 +174,9 @@ const StatsInterface = () => {
 
             {/* Resumen del agente */}
             <div style={{
-                fontSize: '0.85rem',
-                color: '#4B5563',
-                lineHeight: '1.4',
-                padding: '15px 10px',
-                backgroundColor: '#F9FAFB',
-                borderRadius: '8px',
-                overflow: 'auto',
-                flex: 1,
-                minHeight: '80px'
+                fontSize: '0.85rem', color: '#4B5563', lineHeight: '1.4',
+                padding: '15px 10px', backgroundColor: '#F9FAFB',
+                borderRadius: '8px', overflow: 'auto', flex: 1, minHeight: '80px'
             }}>
                 {isLoading ? (
                     <span style={{ color: '#9CA3AF' }}>Generando resumen...</span>

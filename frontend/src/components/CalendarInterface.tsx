@@ -3,36 +3,38 @@ import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 
+// 1. [CHANGE] Add userId to the interface
 interface CalendarViewProps {
+  userId: string | null;
   onLoadingChange?: (isLoading: boolean) => void
 }
 
-const CalendarView = ({ onLoadingChange }: CalendarViewProps) => {
+// 2. [CHANGE] Receive userId here
+const CalendarView = ({ userId, onLoadingChange }: CalendarViewProps) => {
   const [events, setEvents] = useState([])
 
-  // Mapa de colores de Google Calendar (colorId -> hex)
+  // Google Calendar Color Map
   const googleColors: { [key: string]: string } = {
-    '1': '#7986CB',
-    '2': '#33B679',
-    '3': '#8E24AA',
-    '4': '#E67C73',
-    '5': '#F6BF26',
-    '6': '#F4511E',
-    '7': '#039BE5',
-    '8': '#616161',
-    '9': '#3F51B5',
-    '10': '#0B8043',
-    '11': '#D50000',
+    '1': '#7986CB', '2': '#33B679', '3': '#8E24AA', '4': '#E67C73',
+    '5': '#F6BF26', '6': '#F4511E', '7': '#039BE5', '8': '#616161',
+    '9': '#3F51B5', '10': '#0B8043', '11': '#D50000',
   }
 
   const fetchEvents = () => {
+    // [CHANGE] If no user, clear events and stop
+    if (!userId) {
+      setEvents([])
+      return
+    }
+
     onLoadingChange?.(true)
-    fetch('http://localhost:8000/api/calendar/events')
+
+    // [CHANGE] Add user_id to the URL
+    fetch(`http://localhost:8000/api/calendar/events?user_id=${userId}`)
       .then(res => res.json())
       .then(data => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const formattedEvents = data.map((evt: any) => {
-          // Usar el color original de Google Calendar si existe
           const colorId = evt.colorId
           const defaultColor = '#036ce5ff'
           const bgColor = colorId ? (googleColors[colorId] || defaultColor) : defaultColor
@@ -48,7 +50,7 @@ const CalendarView = ({ onLoadingChange }: CalendarViewProps) => {
         })
         setEvents(formattedEvents)
       })
-      .catch(() => { })
+      .catch(() => { setEvents([]) })
       .finally(() => {
         onLoadingChange?.(false)
       })
@@ -57,7 +59,6 @@ const CalendarView = ({ onLoadingChange }: CalendarViewProps) => {
   useEffect(() => {
     fetchEvents()
 
-    // Escuchar cuando el chat hace cambios en el calendario
     const handleUpdate = () => {
       console.log('[Calendar] Actualizando eventos...')
       fetchEvents()
@@ -67,7 +68,9 @@ const CalendarView = ({ onLoadingChange }: CalendarViewProps) => {
     return () => {
       window.removeEventListener('calendarUpdated', handleUpdate)
     }
-  }, [])
+    // [CHANGE] Reload if userId changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId])
 
   return (
     <div style={{ height: '100%', width: '100%', background: 'white' }}>
@@ -118,18 +121,17 @@ const CalendarView = ({ onLoadingChange }: CalendarViewProps) => {
         /* --- 4. ESTILO DE LOS EVENTOS --- */
         .fc-event {
             cursor: pointer;
-            font-size: 0.75rem !important; /* <--- TAMAÑO DE LETRA (0.75rem es pequeño) */
-            line-height: 1.2 !important;    /* Altura de línea compacta */
-            border-radius: 3px !important;  /* Bordes un poco redondeados */
-            padding: 1px 2px !important;    /* Menos relleno interno */
+            font-size: 0.75rem !important;
+            line-height: 1.2 !important;
+            border-radius: 3px !important;
+            padding: 1px 2px !important;
         }
         
-        /* Ajuste opcional para el título dentro del evento */
         .fc-event-title {
             font-weight: 500 !important;
-            white-space: nowrap !important;     /* Que no salte de línea si es largo */
-            overflow: hidden !important;        /* Cortar si es muy largo */
-            text-overflow: ellipsis !important; /* Poner puntos suspensivos (...) */
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
         }
 
         /* Ajustes generales cabecera */
@@ -145,7 +147,7 @@ const CalendarView = ({ onLoadingChange }: CalendarViewProps) => {
         
         /* Altura uniforme para todas las filas */
         .fc-daygrid-body tr {
-          height: 16.66% !important; /* 100% / 6 filas máximo */
+          height: 16.66% !important; 
         }
         .fc-daygrid-day-frame {
           min-height: auto !important;

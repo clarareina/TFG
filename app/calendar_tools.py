@@ -1,11 +1,11 @@
-from app.services.calendar_service import get_service
+# from app.services.calendar_service import get_calendar_service(user_id)
+from .auth import get_calendar_service
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from app.state import UndoableAction
 import uuid
 from typing import Dict, Any
 
-svc = get_service()
 
 LOCAL_TZ = ZoneInfo("Europe/Madrid")
 
@@ -106,7 +106,8 @@ LOCAL_TZ = ZoneInfo("Europe/Madrid")
 #         return {"response": "Lo siento, no pude crear el evento. Por favor, inténtalo de nuevo.", "undo_info": None}
     
 def create_event(
-    service=svc, summary=None, start_date=None, end_date=None, 
+    user_id: str,
+    summary=None, start_date=None, end_date=None, 
     start_time=None, end_time=None, description="", colorId="7", 
     visibility="default", transparency="opaque", location="", attendees=None, 
     default_reminder=True, reminder=None, zone="Europe/Madrid", recurrence=None, 
@@ -114,7 +115,7 @@ def create_event(
     send_updates="none"
 ):
     try:
-        # --- 1. LÓGICA DE FECHAS ---
+        # 1. LÓGICA DE FECHAS 
         if not start_date:
             start_date = datetime.now(LOCAL_TZ).date().isoformat()
         
@@ -148,7 +149,7 @@ def create_event(
             event["start"] = {"date": start_date}
             event["end"] = {"date": end_date_str}
 
-        # --- 2. PARÁMETROS ---
+        # 2. PARÁMETROS 
         if description: event["description"] = description
         if location: event["location"] = location
         if colorId: event["colorId"] = str(colorId)
@@ -181,7 +182,7 @@ def create_event(
         if attachments: params_insert["supportsAttachments"] = True
 
         # --- 3. EJECUCIÓN API ---
-        created = service.events().insert(**params_insert).execute()
+        created = get_calendar_service(user_id).events().insert(**params_insert).execute()
         
         undo_info = UndoableAction(
             operation="create_event", 
@@ -203,7 +204,7 @@ def create_event(
             return {"response": f"Hubo un error técnico al crear el evento: {str(e)}", "undo_info": None}
     
 
-def get_id(summary, start_date=None, end_date=None, calendar_id="primary", service=svc):
+def get_id(user_id: str, summary, start_date=None, end_date=None, calendar_id="primary"):
     try:
         user_gave_date = start_date is not None
 
@@ -217,7 +218,7 @@ def get_id(summary, start_date=None, end_date=None, calendar_id="primary", servi
         elif len(end_date) == 10:
             end_date = datetime.fromisoformat(end_date).replace(tzinfo=LOCAL_TZ).isoformat()
 
-        events_result = service.events().list(
+        events_result = get_calendar_service(user_id).events().list(
             calendarId=calendar_id,
             timeMin=start_date,
             timeMax=end_date,
@@ -246,8 +247,8 @@ def get_id(summary, start_date=None, end_date=None, calendar_id="primary", servi
 
 
 
-def delete_event(summary, start_date=None, end_date=None, calendar_id="primary", service=svc):
-    event_id = get_id(summary, start_date, end_date, calendar_id, service)
+def delete_event(user_id: str, summary, start_date=None, end_date=None, calendar_id="primary"):
+    event_id = get_id(summary, start_date, end_date, calendar_id, get_calendar_service(user_id))
     if not event_id:
         return {
             "response": f"No se encontró el evento “{summary}”.",
@@ -255,12 +256,12 @@ def delete_event(summary, start_date=None, end_date=None, calendar_id="primary",
         }
     
     try:
-        event_before_delete = service.events().get(
+        event_before_delete = get_calendar_service(user_id).events().get(
             calendarId=calendar_id, 
             eventId=event_id
         ).execute()
 
-        service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+        get_calendar_service(user_id).events().delete(calendarId=calendar_id, eventId=event_id).execute()
 
         undo_info = UndoableAction(
             operation="delete_event",
@@ -279,7 +280,7 @@ def delete_event(summary, start_date=None, end_date=None, calendar_id="primary",
         return {"response": "Lo siento, no pude eliminar el evento. Por favor, inténtalo de nuevo.", "undo_info": None}
 
 
-def delete_date_events(start_date, end_date, calendar_id="primary", service=svc):
+def delete_date_events(user_id: str, start_date, end_date, calendar_id="primary"):
     if not end_date:
         end_date = start_date
     # Convertir fechas a formato ISO con timezone
@@ -295,7 +296,7 @@ def delete_date_events(start_date, end_date, calendar_id="primary", service=svc)
         end_date_iso = end_date
 
     # Obtener eventos directamente de la API (no usar get_events que devuelve un dict)
-    events_result = service.events().list(
+    events_result = get_calendar_service(user_id).events().list(
         calendarId=calendar_id,
         timeMin=start_date_iso,
         timeMax=end_date_iso,
@@ -324,7 +325,7 @@ def delete_date_events(start_date, end_date, calendar_id="primary", service=svc)
             # Guardar el evento completo antes de borrarlo (para undo)
             deleted_bodies.append(event)
             
-            service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+            get_calendar_service(user_id).events().delete(calendarId=calendar_id, eventId=event_id).execute()
             deleted_count += 1
             deleted_summaries.append(event_summary)
         except Exception as e:
@@ -357,7 +358,7 @@ def delete_date_events(start_date, end_date, calendar_id="primary", service=svc)
         }
 
 
-def get_events(summary=None, start_date=None, end_date=None, calendar_id="primary", service=svc, max=2500):
+def get_events(user_id: str, summary=None, start_date=None, end_date=None, calendar_id="primary", max=2500):
     try:
         if not start_date:
             start_date = datetime.now(LOCAL_TZ).isoformat()
@@ -382,7 +383,7 @@ def get_events(summary=None, start_date=None, end_date=None, calendar_id="primar
     if summary:
         query["q"] = summary
 
-    events_result = service.events().list(**query).execute()
+    events_result = get_calendar_service(user_id).events().list(**query).execute()
     events = events_result.get("items", [])
 
     if not events:
@@ -401,8 +402,8 @@ def get_events(summary=None, start_date=None, end_date=None, calendar_id="primar
 
 
 
-def patch_event(summary, start_date=None, changes=None, service=svc):
-    event_id = get_id(summary, start_date, None, "primary", service)
+def patch_event(user_id: str, summary, start_date=None, changes=None):
+    event_id = get_id(summary, start_date, None, "primary", get_calendar_service(user_id))
     if not event_id:
         return {
             "response": f"No se encontró el evento “{summary}”.",
@@ -438,12 +439,12 @@ def patch_event(summary, start_date=None, changes=None, service=svc):
             pass # Dejar que la API falle si el formato es incorrecto
 
     try:
-        event_before_patch = service.events().get(
+        event_before_patch = get_calendar_service(user_id).events().get(
             calendarId="primary", 
             eventId=event_id
         ).execute()
 
-        svc.events().patch(calendarId="primary", eventId=event_id, body=changes).execute()
+        get_calendar_service(user_id).events().patch(calendarId="primary", eventId=event_id, body=changes).execute()
 
         undo_info = UndoableAction(
             operation="patch_event", 
@@ -464,7 +465,7 @@ def patch_event(summary, start_date=None, changes=None, service=svc):
             return {"response": f"Hubo un error técnico al modificar el evento: {str(e)}", "undo_info": None}
 
 
-def duplicate_event(service=svc, summary=None, original_date=None, new_date=None, new_time=None, calendar_id="primary"):
+def duplicate_event(user_id: str, summary=None, original_date=None, new_date=None, new_time=None, calendar_id="primary"):
     try:
         if not summary or not new_date:
             return {
@@ -475,7 +476,7 @@ def duplicate_event(service=svc, summary=None, original_date=None, new_date=None
         if not original_date:
             original_date = datetime.now(LOCAL_TZ).isoformat()
 
-        eventos = service.events().list(
+        eventos = get_calendar_service(user_id).events().list(
             calendarId=calendar_id,
             timeMin=original_date,
             maxResults=5,
@@ -496,7 +497,7 @@ def duplicate_event(service=svc, summary=None, original_date=None, new_date=None
             new_time = original["start"].get("dateTime", original["start"].get("date", "00:00"))[11:16]
 
         result_package = create_event(
-            service=service,
+            service=get_calendar_service(user_id),
             summary=original.get("summary", "(sin título)"),
             start_date=new_date,
             start_time=new_time,
@@ -556,7 +557,7 @@ def _clean_body_for_restore(body: Dict[str, Any]) -> Dict[str, Any]:
     return clean_body
 
 
-def undo_last_action(action_to_undo: UndoableAction, service=svc):
+def undo_last_action(user_id: str, action_to_undo: UndoableAction):
     if not action_to_undo:
         return {
             "response": "No hay ninguna acción reciente que deshacer.",
@@ -569,7 +570,7 @@ def undo_last_action(action_to_undo: UndoableAction, service=svc):
 
     try:    
         if operation == "create_event": 
-            service.events().delete(
+            get_calendar_service(user_id).events().delete(
                 calendarId=calendar_id,
                 eventId=event_id
             ).execute()
@@ -577,7 +578,7 @@ def undo_last_action(action_to_undo: UndoableAction, service=svc):
 
         elif operation == "delete_event":
             body_to_restore = _clean_body_for_restore(action_to_undo['previous_body'])
-            service.events().insert(
+            get_calendar_service(user_id).events().insert(
                 calendarId=calendar_id,
                 body=body_to_restore
             ).execute()
@@ -586,7 +587,7 @@ def undo_last_action(action_to_undo: UndoableAction, service=svc):
 
         elif operation == "patch_event":
             body_to_restore = _clean_body_for_restore(action_to_undo['previous_body'])
-            service.events().update(
+            get_calendar_service(user_id).events().update(
                 calendarId=calendar_id,
                 eventId=event_id,
                 body=body_to_restore
@@ -601,7 +602,7 @@ def undo_last_action(action_to_undo: UndoableAction, service=svc):
             for body in previous_bodies:
                 try:
                     body_to_restore = _clean_body_for_restore(body)
-                    service.events().insert(
+                    get_calendar_service(user_id).events().insert(
                         calendarId=calendar_id,
                         body=body_to_restore
                     ).execute()
@@ -630,7 +631,7 @@ def undo_last_action(action_to_undo: UndoableAction, service=svc):
         }
     
 
-def find_free_slots(duration=None, datetime_min=None, datetime_max=None, service=svc, calendar_id="primary"):
+def find_free_slots(user_id: str, duration=None, datetime_min=None, datetime_max=None, calendar_id="primary"):
 
     if not duration:
         duration = timedelta(hours=1)
@@ -650,7 +651,7 @@ def find_free_slots(duration=None, datetime_min=None, datetime_max=None, service
         'items': [{'id': calendar_id}]
     }
 
-    busy_periods_response = service.freebusy().query(body=body).execute()
+    busy_periods_response = get_calendar_service(user_id).freebusy().query(body=body).execute()
     busy_slots = busy_periods_response.get('calendars', {}).get(calendar_id, {}).get('busy', [])
 
     if not busy_slots:
@@ -690,12 +691,12 @@ def find_free_slots(duration=None, datetime_min=None, datetime_max=None, service
 
 
 
-def get_events_json():
+def get_events_json(user_id: str):
     """
     Obtiene TODOS los eventos (pasados y futuros) para el Frontend.
     """
     try:
-        service = get_service()
+        service = get_calendar_service(user_id)()
         past_date = (datetime.now(LOCAL_TZ) - timedelta(days=365)).isoformat()
         
         events_result = service.events().list(
