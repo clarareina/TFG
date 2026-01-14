@@ -9,7 +9,7 @@ def run_agent(user_input: str, user_id: str) -> dict:
     """
     Ejecuta el agente. Puede devolver:
     - {"status": "complete", "response": "..."} si terminó
-    - {"status": "waiting", "message": "...", "suggested_slots": [...]} si espera decisión
+    - {"status": "waiting", "response": "...", "suggested_slots": [...]} si espera decisión
     """
     # Primero verificamos si hay un interrupt pendiente (el flujo está pausado)
     state = app.get_state(config)
@@ -23,7 +23,7 @@ def run_agent(user_input: str, user_id: str) -> dict:
                 interrupt_data = event["__interrupt__"][0].value
                 return {
                     "status": "waiting",
-                    "message": interrupt_data.get("message", "Elige una opción:"),
+                    "response": interrupt_data.get("response", "Elige una opción:"),
                     "suggested_slots": interrupt_data.get("suggested_slots", [])
                 }
             if "confirmer" in event:
@@ -42,7 +42,7 @@ def run_agent(user_input: str, user_id: str) -> dict:
                 interrupt_data = event["__interrupt__"][0].value
                 return {
                     "status": "waiting",
-                    "message": interrupt_data.get("message", "Elige una opción:"),
+                    "response": interrupt_data.get("response", "Elige una opción:"),
                     "suggested_slots": interrupt_data.get("suggested_slots", [])
                 }
             if "confirmer" in event:

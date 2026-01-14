@@ -31,7 +31,8 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
     const formatMarkdown = (text: string): string => {
         return text
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*(.+?)\*/g, '<em>$1</em>')
+            .replace(/\*(.+?)\*/g, '<span>$1</span>') // CAMBIO: Quitamos énfasis (cursiva) y usamos span
+            .replace(/^- /gm, '• ') // Mejora visual para listas
             .replace(/\n/g, '<br>')
     }
 
@@ -48,7 +49,6 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
         fetch(`http://localhost:8000/api/calendar/events?user_id=${userId}`)
             .then(res => res.json())
             .then((data: CalendarEvent[]) => {
-                // ... (Toda tu lógica matemática sigue igual) ...
                 const now = new Date()
                 now.setHours(0, 0, 0, 0)
                 const endDate = new Date(now)
@@ -92,14 +92,19 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     query: 'Dame una recomendación o resumen para los próximos 7 días por puntos. Responde directamente con la recomendación, sin introducciones, aclaraciones ni referencias a fuentes. Máximo 4 líneas.',
-                    // 2. AQUÍ ESTÁ LA CLAVE: Usamos el prop userId dinámico
                     user_id: userId 
                 })
             })
 
             if (response.ok) {
                 const data = await response.json()
-                setRecommendation(data.response)
+                
+                if (data.status === 'waiting' || data.suggested_slots) {
+                    setRecommendation('El asistente está esperando una elección en el chat para continuar.');
+                } else {
+                    const text = data.response || data.message || data.messages || 'Sin respuesta.';
+                    setRecommendation(typeof text === 'string' ? text : 'Sin respuesta.');
+                }
             } else {
                 setRecommendation('No se pudo obtener el resumen.')
             }
@@ -112,7 +117,6 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
 
     const requestCount = useRef(0)
     
-    // 3. El useEffect ahora vigila 'userId'. Si cambia el usuario, recarga todo.
     useEffect(() => {
         if (userId) {
             calculateStats()
@@ -124,7 +128,6 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
 
         const handleUpdate = () => {
             if (userId) {
-                console.log('[Stats] Actualizando estadísticas...')
                 calculateStats()
                 requestCount.current += 1
                 if (requestCount.current % 5 === 0) {
@@ -134,29 +137,49 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
         }
 
         window.addEventListener('calendarUpdated', handleUpdate)
-
-        return () => {
-            window.removeEventListener('calendarUpdated', handleUpdate)
-        }
+        return () => window.removeEventListener('calendarUpdated', handleUpdate)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [userId]) // <--- Importante: Si userId cambia, se ejecuta esto de nuevo
+    }, [userId])
 
-    // SVG Donut Chart logic (sin cambios)
     const radius = 40
     const circumference = 2 * Math.PI * radius
     const occupiedDash = (stats.occupiedPercent / 100) * circumference
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '12px' }}>
-            {/* Gráfico y leyenda */}
+            
+            <style>
+                {`
+                    @keyframes rotate {
+                        from { transform: rotate(-90deg); }
+                        to { transform: rotate(270deg); }
+                    }
+                    @keyframes pulse {
+                        0% { opacity: 1; }
+                        50% { opacity: 0.6; }
+                        100% { opacity: 1; }
+                    }
+                    .loader-svg {
+                        animation: rotate 2s linear infinite, pulse 1.5s ease-in-out infinite;
+                    }
+                `}
+            </style>
+
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', marginTop: '10px' }}>
-                <svg width="100" height="100" viewBox="0 0 100 100">
+                <svg 
+                    width="100" 
+                    height="100" 
+                    viewBox="0 0 100 100" 
+                    className={isLoading ? 'loader-svg' : ''}
+                >
                     <circle cx="50" cy="50" r={radius} fill="none" stroke="#60A5FA" strokeWidth="12" />
                     <circle
                         cx="50" cy="50" r={radius}
                         fill="none" stroke="#EF4444" strokeWidth="12"
                         strokeDasharray={`${occupiedDash} ${circumference}`}
-                        strokeLinecap="round" transform="rotate(-90 50 50)"
+                        strokeLinecap="round" 
+                        transform={isLoading ? "" : "rotate(-90 50 50)"}
+                        style={{ transition: 'stroke-dasharray 1s ease' }}
                     />
                 </svg>
 
@@ -172,14 +195,13 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
                 </div>
             </div>
 
-            {/* Resumen del agente */}
             <div style={{
                 fontSize: '0.85rem', color: '#4B5563', lineHeight: '1.4',
                 padding: '15px 10px', backgroundColor: '#F9FAFB',
                 borderRadius: '8px', overflow: 'auto', flex: 1, minHeight: '80px'
             }}>
                 {isLoading ? (
-                    <span style={{ color: '#9CA3AF' }}>Generando resumen...</span>
+                    <span style={{ color: '#9CA3AF' }}>Analizando tu agenda...</span> // CAMBIO: Quitamos estilo itálico
                 ) : (
                     <span dangerouslySetInnerHTML={{ __html: formatMarkdown(recommendation) }} />
                 )}

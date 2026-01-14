@@ -91,11 +91,18 @@ async def chat_endpoint(request: UserRequest):
         agent_result = run_agent(request.query, request.user_id) 
         registrar_log(request.user_id, request.query, agent_result)
 
-        return AgentResponse(
-            status="complete",
-            response=str(agent_result.get("response", "Sin respuesta."))
-
+        result = (
+            agent_result.get("response") or 
+            agent_result.get("message") or 
+            agent_result.get("messages") or 
+            "Sin respuesta."
         )
+
+        return AgentResponse(
+            status=agent_result.get("status", "complete"),
+            response=str(result)
+        )
+        
 
     except Exception as e:
         print(f"[API Error] {e}")

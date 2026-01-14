@@ -360,7 +360,7 @@ def verification_node(state: AgentState) -> dict:
         user_id=current_user_id, 
         start_date=check_start, 
         end_date=check_end,
-        max=5 
+        max=2500 
     )
 
     scan_response_str = scan_result_package.get("response", "")
@@ -477,7 +477,7 @@ def get_user_decision(state: AgentState) -> dict:
     # return state
     suggested_slots = state.get("suggested_slots", [])
     user_input = interrupt({
-        "messages": messages[0] if messages else "",
+        "response": messages[0] if messages else "",
         "suggested_slots": suggested_slots
     })
     
