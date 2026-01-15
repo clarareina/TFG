@@ -68,19 +68,40 @@ class AgentResponse(BaseModel):
 def check():
     return {"status": "online", "system": "Agent Backend v2"}
 
+@app.get("/api/auth/url")
+def get_login_url(redirect_uri: str = Query(..., description="URL donde volverá Google"), login_hint: str = Query(None, description="Email sugerido")):
+    """Devuelve la URL de autorización de Google."""
+    from .auth import get_auth_url
+    url = get_auth_url(redirect_uri, login_hint)
+    return {"url": url}
+
+class CallbackRequest(BaseModel):
+    code: str
+    redirect_uri: str
+
+@app.post("/api/auth/callback")
+def auth_callback(req: CallbackRequest):
+    """Canjea el código por token y devuelve el email del usuario."""
+    from .auth import exchange_code
+    try:
+        user_email = exchange_code(req.code, req.redirect_uri)
+        return {"status": "success", "user_id": user_email}
+    except Exception as e:
+        print(f"[Auth Error] {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.get("/api/auth/login")
-def login(user_id: str = Query(..., description="Email del usuario para autenticar")):
+def login(user_id: str = Query(..., description="Email del usuario")):
     """
-    Endpoint para inicializar la sesión.
-    Si el usuario no está en la BD, abrirá el navegador en el servidor (flujo local).
-    Si ya está, devuelve OK inmediatamente.
+    Verifica si el usuario ya tiene sesión válida.
     """
     try:
-        # Llama a toda la lógica de auth.py (DB check -> Refresh -> Login)
-        service = get_calendar_service(user_id)
-        return {"status": "success", "message": f"Sesión activa para {user_id}"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Intenta obtener servicio. Si falla, es que no tiene token válido.
+        get_calendar_service(user_id)
+        return {"status": "success", "message": "Sesión activa"}
+    except Exception:
+        # Si falla, devolvemos success=False para que el frontend pida login
+        return {"status": "error", "message": "Requiere login"}
 
 @app.post("/api/chat", response_model=AgentResponse)
 async def chat_endpoint(request: UserRequest):

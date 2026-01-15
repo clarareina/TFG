@@ -5,22 +5,140 @@ import CalendarView from './components/CalendarInterface'
 import UpcomingEvents from './components/EventsInterface'
 import StatsInterface from './components/StatsInterface'
 
-// Definimos el usuario que usaremos (esto simula el login)
-// IMPORTANTE: Asegúrate de que este email coincide con el que usaste en el Backend
-// const USUARIO_SESION = "usuario_demo@gmail.com"
-const USUARIO_SESION = "user"
+
+
+const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
+  const [email, setEmail] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handleLogin = async () => {
+    if (!email) return alert("Por favor introduce un email")
+    setIsLoading(true)
+
+    try {
+      // 1. Verificar si ya existe sesión
+      const res = await fetch(`http://localhost:8000/api/auth/login?user_id=${email}`)
+      const data = await res.json()
+
+      if (data.status === "success") {
+        // Ya tiene sesión válida
+        localStorage.setItem("tfg_user_id", email)
+        onLogin()
+      } else {
+        // 2. No tiene sesión, iniciar OAuth
+        const redirectUri = window.location.origin // http://localhost:5173
+        const urlRes = await fetch(`http://localhost:8000/api/auth/url?redirect_uri=${redirectUri}&login_hint=${email}`)
+        const urlData = await urlRes.json()
+
+        // Redirigir a Google
+        window.location.href = urlData.url
+      }
+    } catch (e) {
+      alert("Error conectando con el servidor")
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <div style={{
+      display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center',
+      backgroundColor: '#f3f4f6', flexDirection: 'column', gap: '20px'
+    }}>
+      <div className="card" style={{ width: '400px', alignItems: 'center', gap: '20px' }}>
+        <h2>TFG Agent 🤖</h2>
+        <p style={{ color: '#666', textAlign: 'center' }}>
+          Inicia sesión para gestionar tu calendario
+        </p>
+
+        <input
+          type="email"
+          placeholder="tu_email@gmail.com"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
+        />
+
+        <button
+          onClick={handleLogin}
+          disabled={isLoading}
+          style={{
+            width: '100%', padding: '12px', background: '#2563eb', color: 'white',
+            border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
+          }}
+        >
+          {isLoading ? "Verificando..." : "Iniciar Sesión con Google"}
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function App() {
   const [isCalendarLoading, setIsCalendarLoading] = useState(true)
-  
-  // Estado para guardar el usuario actual.
-  // Inicialmente es null, pero en cuanto carga la app, le asignamos el usuario.
   const [userId, setUserId] = useState<string | null>(null)
+  const [isProcessing, setIsProcessing] = useState(true) // Cargando inicial
 
   useEffect(() => {
-    // Simulamos que el usuario inicia sesión al entrar
-    setUserId(USUARIO_SESION)
+    const checkAuth = async () => {
+      // 1. Verificar si venimos de Google con un code
+      const params = new URLSearchParams(window.location.search)
+      const code = params.get("code")
+
+      if (code) {
+        // Estamos volviendo de Google
+        try {
+          const res = await fetch("http://localhost:8000/api/auth/callback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              code,
+              redirect_uri: window.location.origin
+            })
+          })
+          const data = await res.json()
+
+          if (data.status === "success") {
+            const user = data.user_id
+            localStorage.setItem("tfg_user_id", user)
+            setUserId(user)
+            // Limpiar URL
+            window.history.replaceState({}, document.title, "/")
+          } else {
+            alert("Error login Google")
+          }
+        } catch (e) {
+          alert("Error de conexión callback")
+        }
+        setIsProcessing(false)
+        return
+      }
+
+      // 2. Si no hay code, mirar si tenemos usuario guardado en LocalStorage
+      const savedUser = localStorage.getItem("tfg_user_id")
+      if (savedUser) {
+        setUserId(savedUser)
+      }
+      setIsProcessing(false)
+    }
+
+    checkAuth()
   }, [])
+
+  const handleLogout = () => {
+    localStorage.removeItem("tfg_user_id")
+    setUserId(null)
+  }
+
+  if (isProcessing) {
+    return <div style={{ display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center' }}>Cargando...</div>
+  }
+
+  if (!userId) {
+    return <LoginScreen onLogin={() => {
+      const u = localStorage.getItem("tfg_user_id")
+      if (u) setUserId(u)
+    }} />
+  }
 
   // PANTALLA PRINCIPAL (DASHBOARD)
   return (
@@ -30,6 +148,7 @@ function App() {
       <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', alignItems: 'center' }}>
           <h3 style={{ margin: 0 }}>Asistente</h3>
+          <button onClick={handleLogout} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.8rem', color: '#ef4444' }}>Cerrar Sesión</button>
         </div>
         {/* Pasamos el userId al Chat para que sepa quién habla */}
         <ChatInterface userId={userId} />
@@ -69,9 +188,9 @@ function App() {
         {/* EL CALENDARIO */}
         {/* Pasamos userId también al calendario */}
         <div style={{ flex: 1, minHeight: 0 }}>
-          <CalendarView 
-             userId={userId} 
-             onLoadingChange={setIsCalendarLoading} 
+          <CalendarView
+            userId={userId}
+            onLoadingChange={setIsCalendarLoading}
           />
         </div>
       </div>
