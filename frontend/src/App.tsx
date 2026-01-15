@@ -45,14 +45,14 @@ const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
       backgroundColor: '#f3f4f6', flexDirection: 'column', gap: '20px'
     }}>
       <div className="card" style={{ width: '400px', alignItems: 'center', gap: '20px' }}>
-        <h2>TFG Agent 🤖</h2>
+        <h2>TFG </h2>
         <p style={{ color: '#666', textAlign: 'center' }}>
           Inicia sesión para gestionar tu calendario
         </p>
 
         <input
           type="email"
-          placeholder="tu_email@gmail.com"
+          placeholder="email@gmail.com"
           value={email}
           onChange={e => setEmail(e.target.value)}
           style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 
-// 1. [NUEVO] Definimos la interfaz de las props
 interface EventsProps {
     userId: string | null;
 }
@@ -13,7 +12,6 @@ interface CalendarEvent {
     colorId?: string
 }
 
-// 2. [CAMBIO] Recibimos userId aquí
 const UpcomingEvents = ({ userId }: EventsProps) => {
     const [events, setEvents] = useState<CalendarEvent[]>([])
     const [isLoading, setIsLoading] = useState(false) // Empezamos en false hasta tener usuario
@@ -26,14 +24,12 @@ const UpcomingEvents = ({ userId }: EventsProps) => {
     }
 
     const fetchEvents = () => {
-        // [CAMBIO] Si no hay usuario, limpiamos y no hacemos fetch
         if (!userId) {
             setEvents([])
             return
         }
 
         setIsLoading(true)
-        // [CAMBIO] Añadimos el user_id a la URL
         fetch(`http://localhost:8000/api/calendar/events?user_id=${userId}`)
             .then(res => res.json())
             .then((data: CalendarEvent[]) => {
@@ -77,7 +73,6 @@ const UpcomingEvents = ({ userId }: EventsProps) => {
         return () => {
             window.removeEventListener('calendarUpdated', handleCalendarUpdate)
         }
-    // [CAMBIO] Importante: Añadir userId a las dependencias
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId])
 

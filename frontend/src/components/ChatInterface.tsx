@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { KeyboardEvent } from 'react'
 
-// 1. [NUEVO] Definimos que este componente recibe userId
+// Definimos que este componente recibe userId
 interface ChatProps {
   userId: string | null;
 }
@@ -12,7 +12,7 @@ interface Message {
   sender: 'user' | 'bot'
 }
 
-// 2. [CAMBIO] Recibimos userId aquí
+// Recibimos userId aquí
 const ChatInterface = ({ userId }: ChatProps) => {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false) // Para saber si está "pensando"
@@ -40,18 +40,18 @@ const ChatInterface = ({ userId }: ChatProps) => {
   useEffect(scrollToBottom, [messages])
 
   const handleSend = async () => {
-    // [CAMBIO] Si no hay texto O no hay usuario, no hacemos nada
+    // Si no hay texto O no hay usuario, no hacemos nada
     if (!input.trim() || !userId) return
 
-    // 1. Guardamos el texto y limpiamos el input
+    // Guardamos el texto y limpiamos el input
     const userText = input
     setInput('')
 
-    // 2. Pintamos TU mensaje 
+    // Pintamos mensaje 
     const userMsg: Message = { id: Date.now(), text: userText, sender: 'user' }
     setMessages(prev => [...prev, userMsg])
 
-    // 3. Activamos modo "cargando"
+    // Modo "cargando"
     setIsLoading(true)
 
     try {
@@ -63,7 +63,7 @@ const ChatInterface = ({ userId }: ChatProps) => {
         },
         body: JSON.stringify({
           query: userText,
-          user_id: userId // [CAMBIO] Usamos el usuario real, no "user" a fuego
+          user_id: userId 
         }),
       })
 

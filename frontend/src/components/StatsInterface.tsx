@@ -13,9 +13,8 @@ interface Stats {
     freeSlots: number
 }
 
-// 1. Definimos que este componente NECESITA recibir el ID del usuario
 interface StatsInterfaceProps {
-    userId: string | null; // Puede ser null si aún no se ha logueado
+    userId: string | null; 
 }
 
 const StatsInterface = ({ userId }: StatsInterfaceProps) => {
@@ -31,7 +30,7 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
     const formatMarkdown = (text: string): string => {
         return text
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*(.+?)\*/g, '<span>$1</span>') // CAMBIO: Quitamos énfasis (cursiva) y usamos span
+            .replace(/\*(.+?)\*/g, '<span>$1</span>') // 
             .replace(/^- /gm, '• ') // Mejora visual para listas
             .replace(/\n/g, '<br>')
     }

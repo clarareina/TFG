@@ -383,7 +383,12 @@ def verification_node(state: AgentState) -> dict:
 
 def propose_node(state:AgentState) -> dict:
     """
-    Tras un conflicto, llama a find_free_slots y propone alternativas usando LLM.
+    Este nodo se activa cuando el 'verifier' encuentra un conflicto (ya existe evento).
+    
+    1. Calcula la duración del evento fallido.
+    2. Busca huecos libres (find_free_slots) en las próximas 2 semanas.
+    3. Usa Gemini para generar un texto explicativo.
+    4. Genera una lista 'limpia' de sugerencias (suggested_slots) para el Frontend.
     """
     current_user_id = state.get('user_id') 
     pending_actions = state.get("pending_action")
@@ -397,6 +402,7 @@ def propose_node(state:AgentState) -> dict:
     end_time_str = parameters.get("end_time")
     duration_minutes = 60 # Valor por defecto si falla el cálculo
 
+    # Lógica para calcular la duración exacta que el usuario quiere
     if start_date_str and start_time_str and end_date_str and end_time_str: # Evento con inicio y fin
         start_dt = datetime.strptime(f"{start_date_str} {start_time_str}", "%Y-%m-%d %H:%M")
         end_dt = datetime.strptime(f"{end_date_str} {end_time_str}", "%Y-%m-%d %H:%M")
@@ -415,7 +421,7 @@ def propose_node(state:AgentState) -> dict:
 
     duration = timedelta(minutes=duration_minutes)
     
-    # Calcular rango de búsqueda: desde la fecha solicitada hasta 2 semanas después
+    # rango de búsqueda: desde fecha solicitada hasta 2 semanas después
     datetime_min = start_dt.replace(tzinfo=LOCAL_TZ).isoformat()
     datetime_max = (start_dt.replace(tzinfo=LOCAL_TZ) + timedelta(weeks=2)).isoformat()
     
@@ -427,20 +433,19 @@ def propose_node(state:AgentState) -> dict:
         datetime_max=datetime_max
     )
 
-    # Preparar info del conflicto
+    # Preparar info del conflicto para el prompt del LLM
     conflict_info = f"El usuario intentó crear '{summary}' el {start_date_str}"
     if start_time_str:
         conflict_info += f" a las {start_time_str}"
     conflict_info += ", pero ya hay un evento en ese horario."
 
-    # Convertir huecos a string para el LLM
+    # Convertir huecos a string
     raw_data_str = str(free_slots) if free_slots else "[]"
     
-    # Usar LLM para formatear la respuesta
-    prompt = proposer_prompt(user_query, raw_data_str, conflict_info)
+    prompt = proposer_prompt(user_query, raw_data_str, conflict_info)     # busca los mejores huecos
     response_text = generar_respuesta(prompt).strip()
     
-    # Preparar suggested_slots para el frontend (máximo 5)
+    # Preparar 'suggested_slots' 
     suggestions = []
     if free_slots:
         for gap in free_slots:
@@ -453,6 +458,7 @@ def propose_node(state:AgentState) -> dict:
                 if len(suggestions) >= 5:
                     break
                 slot_end = current_time + duration
+                # Filtramos para mostrar solo horas razonables (8:00 - 20:00)
                 if ((8 <= current_time.hour < 20) and (8 <= slot_end.hour <= 20)):
                     suggestions.append({
                         "start": current_time.isoformat(),
@@ -463,124 +469,129 @@ def propose_node(state:AgentState) -> dict:
     return {"api_response_list": [response_text], "suggested_slots": suggestions}
 
 
-# ==================== CÓDIGO ANTIGUO COMENTADO ====================
 # def propose_node_OLD(state:AgentState) -> dict:
-#     """
-#     Tras un conflicto, llama a find_free_slots y propone alternativas.
-#     """
-#     current_user_id = state.get('user_id') 
-#     pending_actions = state.get("pending_action")
-#     
-#     parameters = pending_actions.get("parameters", {})
-#     summary = parameters.get("summary")
-#     start_date_str = parameters.get("start_date") #string YYYY-MM-DD
-#     start_time_str = parameters.get("start_time")
-#     end_date_str = parameters.get("end_date")
-#     end_time_str = parameters.get("end_time")
-#     duration_minutes = 60 # Valor por defecto si falla el cálculo
+#     """
+#     Tras un conflicto, llama a find_free_slots y propone alternativas.
+#     """
+#     current_user_id = state.get('user_id') 
+#     pending_actions = state.get("pending_action")
+#     
+#     parameters = pending_actions.get("parameters", {})
+#     summary = parameters.get("summary")
+#     start_date_str = parameters.get("start_date") #string YYYY-MM-DD
+#     start_time_str = parameters.get("start_time")
+#     end_date_str = parameters.get("end_date")
+#     end_time_str = parameters.get("end_time")
+#     duration_minutes = 60 # Valor por defecto si falla el cálculo
 # 
-#     if start_date_str and start_time_str and end_date_str and end_time_str: # Evento con inicio y fin
-#         start_dt = datetime.strptime(f"{start_date_str} {start_time_str}", "%Y-%m-%d %H:%M")
-#         end_dt = datetime.strptime(f"{end_date_str} {end_time_str}", "%Y-%m-%d %H:%M")
-#         duration_delta = end_dt - start_dt
-#         duration_minutes = int(duration_delta.total_seconds() / 60)
-#     
-#     elif start_date_str and start_time_str and not end_date_str and not end_time_str: # Evento con inicio (1h por defecto)
-#         start_dt = datetime.strptime(f"{start_date_str} {start_time_str}", "%Y-%m-%d %H:%M")
-#         end_dt = start_dt + timedelta(hours=1)
-#         #duracion 60 min
-#     
-#     elif start_date_str and not start_time_str and not end_date_str and not end_time_str: #Evento con fecha inicio (Todo el dia)
-#         start_dt = datetime.strptime(f"{start_date_str}", "%Y-%m-%d")
-#         end_dt = start_dt + timedelta(days=1)
-#         duration_minutes = 1440
-#     
-#     
-#     # # Aseguramos una duración mínima
-#     # if duration_minutes <= 0:
-#     #     duration_minutes = 60
+#     if start_date_str and start_time_str and end_date_str and end_time_str: # Evento con inicio y fin
+#         start_dt = datetime.strptime(f"{start_date_str} {start_time_str}", "%Y-%m-%d %H:%M")
+#         end_dt = datetime.strptime(f"{end_date_str} {end_time_str}", "%Y-%m-%d %H:%M")
+#         duration_delta = end_dt - start_dt
+#         duration_minutes = int(duration_delta.total_seconds() / 60)
+#     
+#     elif start_date_str and start_time_str and not end_date_str and not end_time_str: # Evento con inicio (1h por defecto)
+#         start_dt = datetime.strptime(f"{start_date_str} {start_time_str}", "%Y-%m-%d %H:%M")
+#         end_dt = start_dt + timedelta(hours=1)
+#         #duracion 60 min
+#     
+#     elif start_date_str and not start_time_str and not end_date_str and not end_time_str: #Evento con fecha inicio (Todo el dia)
+#         start_dt = datetime.strptime(f"{start_date_str}", "%Y-%m-%d")
+#         end_dt = start_dt + timedelta(days=1)
+#         duration_minutes = 1440
+#     
+#     
+#     # # Aseguramos una duración mínima
+#     # if duration_minutes <= 0:
+#     #     duration_minutes = 60
 # 
-#     duration = timedelta(minutes=duration_minutes)
-#     free_slots = calendar_tools.find_free_slots(user_id=current_user_id, 
-#                                                 duration=duration, 
-#                                                 datetime_min=start_dt.replace(tzinfo=LOCAL_TZ).isoformat())
+#     duration = timedelta(minutes=duration_minutes)
+#     free_slots = calendar_tools.find_free_slots(user_id=current_user_id, 
+#                                                 duration=duration, 
+#                                                 datetime_min=start_dt.replace(tzinfo=LOCAL_TZ).isoformat())
 # 
-#     if not free_slots:
-#         msg = f"Conflicto detectado para '{summary}'. No he encontrado huecos libres cercanos. ¿Quieres 'forzar' el evento o 'cancelar'?"
-#         return {"api_response_list": [msg], "suggested_slots": []}
-#     else:
-#         suggestions = []
-#         for gap in free_slots:
-#             if len(suggestions) >= 5:
-#                 break
-#             current_time = datetime.fromisoformat(gap['start'])
-#             gap_end = datetime.fromisoformat(gap['end'])
+#     if not free_slots:
+#         msg = f"Conflicto detectado para '{summary}'. No he encontrado huecos libres cercanos. ¿Quieres 'forzar' el evento o 'cancelar'?"
+#         return {"api_response_list": [msg], "suggested_slots": []}
+#     else:
+#         suggestions = []
+#         for gap in free_slots:
+#             if len(suggestions) >= 5:
+#                 break
+#             current_time = datetime.fromisoformat(gap['start'])
+#             gap_end = datetime.fromisoformat(gap['end'])
 # 
-#             while ((current_time + duration) <= gap_end):
-#                 if len(suggestions) >= 5:
-#                     break
-#                 slot_end = current_time + duration
-#                 if ((8 <= current_time.hour < 20) and (8 <= slot_end.hour <= 20)):
-#                     suggestions.append({
-#                         "start": current_time.isoformat(),
-#                         "end": slot_end.isoformat()
-#                     })
-#                 current_time = slot_end
-#                 
-#     
-#         if not suggestions:
-#             msg = f"Conflicto detectado para '{summary}'. He encontrado huecos, pero ninguno es suficientemente largo para los {duration_minutes} min. ¿Quieres 'forzar' o 'cancelar'?"
-#             return {"api_response_list": [msg], "suggested_slots": []}
-#         else:
-#             msg = f"Conflicto detectado para '{summary}'. Ya hay un evento. He encontrado estos huecos alternativos:\n"
+#             while ((current_time + duration) <= gap_end):
+#                 if len(suggestions) >= 5:
+#                     break
+#                 slot_end = current_time + duration
+#                 if ((8 <= current_time.hour < 20) and (8 <= slot_end.hour <= 20)):
+#                     suggestions.append({
+#                         "start": current_time.isoformat(),
+#                         "end": slot_end.isoformat()
+#                     })
+#                 current_time = slot_end
+#                 
+#     
+#         if not suggestions:
+#             msg = f"Conflicto detectado para '{summary}'. He encontrado huecos, pero ninguno es suficientemente largo para los {duration_minutes} min. ¿Quieres 'forzar' o 'cancelar'?"
+#             return {"api_response_list": [msg], "suggested_slots": []}
+#         else:
+#             msg = f"Conflicto detectado para '{summary}'. Ya hay un evento. He encontrado estos huecos alternativos:\n"
 # 
-#             for i, slot in enumerate(suggestions):
-#                 friendly_time = (
-#                     f"{datetime.fromisoformat(slot['start']).strftime('%Y-%m-%d')} de {datetime.fromisoformat(slot['start']).strftime('%H:%M')} "
-#                     f"a {datetime.fromisoformat(slot['end']).strftime('%H:%M')}")
-#                 msg += f"  {i+1}. {friendly_time}\n"
+#             for i, slot in enumerate(suggestions):
+#                 friendly_time = (
+#                     f"{datetime.fromisoformat(slot['start']).strftime('%Y-%m-%d')} de {datetime.fromisoformat(slot['start']).strftime('%H:%M')} "
+#                     f"a {datetime.fromisoformat(slot['end']).strftime('%H:%M')}")
+#                 msg += f"  {i+1}. {friendly_time}\n"
 # 
-#             msg += "Elige el número de la opción, 'forzar' (para añadirlo igualmente) o 'cancelar'."
-#             return {"api_response_list": [msg], "suggested_slots": suggestions} 
+#             msg += "Elige el número de la opción, 'forzar' (para añadirlo igualmente) o 'cancelar'."
+#             return {"api_response_list": [msg], "suggested_slots": suggestions} 
 
 
 
 #nodo de espera
 def get_user_decision(state: AgentState) -> dict:
     """
-    Imprime la propuesta Y LUEGO pausa el flujo.
-    """    
+    NODO DE PAUSA (INTERRUPT):
+    Detiene la ejecución del grafo y espera input externo.
+    
+    1. Recoge el mensaje de propuesta y los slots sugeridos.
+    2. Llama a `interrupt(...)`. Esto lanza una "excepción" que LangGraph captura para pausar el estado.
+    3. El backend devuelve los datos al frontend y se queda esperando.
+    4. Cuando el frontend llama a `/chat` con la respuesta, el grafo se reanuda justo después del interrupt.
+    """
     messages = state.get("api_response_list", [])
     # if messages:
-    #     print("\n" + messages[0]) 
+    #     print("\n" + messages[0]) 
     
     # user_input = input("> ").strip().lower()
     # state["user_choice"] = user_input
     
     # return state
     suggested_slots = state.get("suggested_slots", [])
+    
     user_input = interrupt({
         "response": messages[0] if messages else "",
         "suggested_slots": suggested_slots
     })
     
-    # Cuando el flujo se reanuda, user_input contiene la respuesta del usuario
+    # Cuando se reanuda (resume), 'user_input' tiene la elección del usuario
     return {"user_choice": user_input.strip().lower() if isinstance(user_input, str) else user_input}
 
 def process_user_decision(state: AgentState) -> dict:
     """
-    Procesa la respuesta del usuario tras una propuesta de huecos.
-    Combina los 3 mensajes para que tool_interpreter tenga el contexto completo:
-    1. Petición original del usuario
-    2. Respuesta del agente (opciones)
-    3. Respuesta del usuario eligiendo
+    NODO DE PROCESADO (POST-PAUSA):
+    Se ejecuta justo después de que el usuario responde.
+    
+    Objetivo: Convertir la elección del usuario en una instrucción
+    completa que el LLM pueda entender para reintentar la acción.
     """
-    user_choice = state.get("user_choice", '')  # No hacer .lower() para preservar el mensaje original
-    original_user_input = state.get("input_user", "")  # Petición original
-    llm_previous_response = state.get("api_response_list", [""])[0]  # Respuesta del agente
+    user_choice = state.get("user_choice", '')  
+    original_user_input = state.get("input_user", "")  
+    llm_previous_response = state.get("api_response_list", [""])[0]  
 
     if user_choice.lower() == "cancelar":
-        # El usuario canceló
         return {
             "api_response_list": ["Acción cancelada"],
             "pending_action": None,
@@ -589,7 +600,7 @@ def process_user_decision(state: AgentState) -> dict:
         }
     
     else:
-        # Combinar los 3 mensajes para tool_interpreter
+        # Combinar los 3 mensajes para darle contexto completo al tool_interpreter:
         combined_input = f"""PETICIÓN ORIGINAL DEL USUARIO: {original_user_input}
 
 RESPUESTA DEL AGENTE: {llm_previous_response}
@@ -599,7 +610,7 @@ RESPUESTA DEL USUARIO: {user_choice}"""
         return {
             "input_user": combined_input,
             "pending_action": None,
-            "routing_decision": "to_interpreter"
+            "routing_decision": "to_interpreter" # Forzamos re-interpretación
         }
 
 
@@ -621,7 +632,7 @@ def analysis_node(state: dict) -> dict:
     prompt_final = analysis_prompt(function_name, raw_data_str, user_query)
     response_text = generar_respuesta(prompt_final).strip()
     
-    # Determinar si hay opciones accionables (el usuario puede querer añadir algo al calendario)
+    # Determinar si hay opciones accionables
     # find_free_slots: huecos que se pueden agendar
     # estimate_duration: duraciones que se pueden usar para crear eventos
     has_actionable_options = function_name in ["find_free_slots", "estimate_duration"]
@@ -665,6 +676,8 @@ def chat_node(state: dict) -> dict:
 
 # GRAFO
 workflow = StateGraph(AgentState)
+
+# 1. Añadimos todos los nodos disponibles
 workflow.add_node("router", router_node)
 workflow.add_node("tool_interpreter", tool_interpreter)
 workflow.add_node("reasoning_interpreter", reasoning_interpreter)
@@ -679,15 +692,14 @@ workflow.add_node("analysis", analysis_node)
 workflow.add_node("chat", chat_node)
 
 
-
 def decide_next_step(state: AgentState):
     verification = state.get("verification_result")
     if verification and verification["conflict_found"]:
-        return "report_conflict"
+        return "report_conflict" # Ir a proposer
     else:
-        return "continue_execution"
+        return "continue_execution" # Ir a tool_executor
     
-workflow.set_entry_point("router") # nodo inicial del flujo
+workflow.set_entry_point("router") # nodo inicial 
 workflow.add_conditional_edges(
     "router",
     lambda state: state.get("routing_decision"),
@@ -697,6 +709,7 @@ workflow.add_conditional_edges(
         "chat": "chat"
     }
 )
+
 workflow.add_edge("tool_interpreter", "verifier")
 workflow.add_edge("reasoning_interpreter", "reasoning_executor")
 workflow.add_conditional_edges("verifier", decide_next_step,
@@ -705,21 +718,21 @@ workflow.add_conditional_edges("verifier", decide_next_step,
         "continue_execution": "tool_executor"
     }
 )
+
 workflow.add_edge("proposer", "get_user_decision")
 workflow.add_edge("get_user_decision", "process_user_decision")
 workflow.add_conditional_edges("process_user_decision",
     lambda state: state.get("routing_decision"),
     {
-        "execute": "tool_executor",
-        "end": "confirmer",
+        "execute": "tool_executor", # (no se usa mucho aquí, solemos ir a interpreter)
+        "end": "confirmer",         # Usuario canceló
         "invalid_choice": "get_user_decision",
-        "to_interpreter": "tool_interpreter"  # Combina respuestas y pasa a tool_interpreter
+        "to_interpreter": "tool_interpreter"  # Combina respuestas y pasa a tool_interpreter para reintentar
     }
 )
+
 workflow.add_edge("tool_executor", "confirmer")
 workflow.add_edge("reasoning_executor", "analysis")
-
-# Bifurcación de analysis: si hay opciones accionables → esperar respuesta usuario
 def decide_analysis_next(state: AgentState):
     if state.get("analysis_has_options"):
         return "wait_user"
@@ -729,12 +742,13 @@ def decide_analysis_next(state: AgentState):
 workflow.add_conditional_edges("analysis", decide_analysis_next,
     {
         "wait_user": "get_user_decision",  # Huecos/duraciones → esperar respuesta
-        "finish": "confirmer"               # Solo informativo → terminar
+        "finish": "confirmer"              # Solo informativo → terminar
     }
 )
 
 workflow.add_edge("chat", "confirmer") 
 workflow.add_edge("confirmer", "__end__")
+
 
 conn = sqlite3.connect("checkpoints.db", check_same_thread=False)
 memory = SqliteSaver(conn=conn)

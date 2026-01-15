@@ -3,17 +3,16 @@ import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 
-// 1. [CHANGE] Add userId to the interface
+// Añadir userId a la interfaz
 interface CalendarViewProps {
   userId: string | null;
   onLoadingChange?: (isLoading: boolean) => void
 }
 
-// 2. [CHANGE] Receive userId here
+// Recibir userId
 const CalendarView = ({ userId, onLoadingChange }: CalendarViewProps) => {
   const [events, setEvents] = useState([])
 
-  // Google Calendar Color Map
   const googleColors: { [key: string]: string } = {
     '1': '#7986CB', '2': '#33B679', '3': '#8E24AA', '4': '#E67C73',
     '5': '#F6BF26', '6': '#F4511E', '7': '#039BE5', '8': '#616161',
@@ -21,7 +20,7 @@ const CalendarView = ({ userId, onLoadingChange }: CalendarViewProps) => {
   }
 
   const fetchEvents = () => {
-    // [CHANGE] If no user, clear events and stop
+    // Si no hay userId eliminar eventos y parar
     if (!userId) {
       setEvents([])
       return
@@ -29,7 +28,7 @@ const CalendarView = ({ userId, onLoadingChange }: CalendarViewProps) => {
 
     onLoadingChange?.(true)
 
-    // [CHANGE] Add user_id to the URL
+    // Añadir user_id a la URL
     fetch(`http://localhost:8000/api/calendar/events?user_id=${userId}`)
       .then(res => res.json())
       .then(data => {
@@ -68,7 +67,7 @@ const CalendarView = ({ userId, onLoadingChange }: CalendarViewProps) => {
     return () => {
       window.removeEventListener('calendarUpdated', handleUpdate)
     }
-    // [CHANGE] Reload if userId changes
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
 

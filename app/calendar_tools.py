@@ -190,7 +190,6 @@ def create_event(
             eventId=created['id'], 
             previous_body=None
         )
-        print("3")
         return {
             "response": f"Se ha creado el evento “{summary}” correctamente.",
             "undo_info": undo_info
