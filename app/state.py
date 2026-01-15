@@ -40,5 +40,6 @@ class AgentState(TypedDict):
     user_choice: Optional[str]
     routing_decision: Optional[str]
     is_final: Optional[bool]
+    analysis_has_options: Optional[bool]  # Para bifurcación en analysis_node
 
 

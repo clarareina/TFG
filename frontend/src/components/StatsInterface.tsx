@@ -43,7 +43,7 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
     // Calcular estadísticas
     const calculateStats = () => {
         // Si no hay usuario, no pedimos nada para evitar error 422
-        if (!userId) return 
+        if (!userId) return
 
         // Pasamos el userId en la URL
         fetch(`http://localhost:8000/api/calendar/events?user_id=${userId}`)
@@ -87,24 +87,12 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
         setIsLoading(true)
         setRecommendation('Generando resumen personalizado...')
         try {
-            const response = await fetch('http://127.0.0.1:8000/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    query: 'Dame una recomendación o resumen para los próximos 7 días por puntos. Responde directamente con la recomendación, sin introducciones, aclaraciones ni referencias a fuentes. Máximo 4 líneas.',
-                    user_id: userId 
-                })
-            })
+            // Usar endpoint separado para recomendaciones (no usa el grafo del agente)
+            const response = await fetch(`http://127.0.0.1:8000/api/recommendations?user_id=${userId}`)
 
             if (response.ok) {
                 const data = await response.json()
-                
-                if (data.status === 'waiting' || data.suggested_slots) {
-                    setRecommendation('El asistente está esperando una elección en el chat para continuar.');
-                } else {
-                    const text = data.response || data.message || data.messages || 'Sin respuesta.';
-                    setRecommendation(typeof text === 'string' ? text : 'Sin respuesta.');
-                }
+                setRecommendation(data.recommendation || 'Sin recomendación.')
             } else {
                 setRecommendation('No se pudo obtener el resumen.')
             }
@@ -116,7 +104,7 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
     }
 
     const requestCount = useRef(0)
-    
+
     useEffect(() => {
         if (userId) {
             calculateStats()
@@ -138,7 +126,7 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
 
         window.addEventListener('calendarUpdated', handleUpdate)
         return () => window.removeEventListener('calendarUpdated', handleUpdate)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId])
 
     const radius = 40
@@ -147,7 +135,7 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '12px' }}>
-            
+
             <style>
                 {`
                     @keyframes rotate {
@@ -166,10 +154,10 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
             </style>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', marginTop: '10px' }}>
-                <svg 
-                    width="100" 
-                    height="100" 
-                    viewBox="0 0 100 100" 
+                <svg
+                    width="100"
+                    height="100"
+                    viewBox="0 0 100 100"
                     className={isLoading ? 'loader-svg' : ''}
                 >
                     <circle cx="50" cy="50" r={radius} fill="none" stroke="#60A5FA" strokeWidth="12" />
@@ -177,7 +165,7 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
                         cx="50" cy="50" r={radius}
                         fill="none" stroke="#EF4444" strokeWidth="12"
                         strokeDasharray={`${occupiedDash} ${circumference}`}
-                        strokeLinecap="round" 
+                        strokeLinecap="round"
                         transform={isLoading ? "" : "rotate(-90 50 50)"}
                         style={{ transition: 'stroke-dasharray 1s ease' }}
                     />
@@ -198,7 +186,7 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
             <div style={{
                 fontSize: '0.85rem', color: '#4B5563', lineHeight: '1.4',
                 padding: '15px 10px', backgroundColor: '#F9FAFB',
-                borderRadius: '8px', overflow: 'auto', flex: 1, minHeight: '80px'
+                borderRadius: '8px', overflow: 'auto', maxHeight: '120px'
             }}>
                 {isLoading ? (
                     <span style={{ color: '#9CA3AF' }}>Analizando tu agenda...</span> // CAMBIO: Quitamos estilo itálico

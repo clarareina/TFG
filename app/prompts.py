@@ -368,6 +368,145 @@ def tool_prompt():
      }
   }
   ]
+
+  # ─────────────────────────────────────────────────────────────────────
+  # CASOS ESPECIALES: Entradas combinadas (tras elegir hueco alternativo)
+  # Estas entradas vienen del sistema con 3 partes:
+  # 1. PETICIÓN ORIGINAL DEL USUARIO
+  # 2. RESPUESTA DEL AGENTE (con las opciones)
+  # 3. RESPUESTA DEL USUARIO (eligiendo)
+  # ─────────────────────────────────────────────────────────────────────
+
+  Usuario: "PETICIÓN ORIGINAL DEL USUARIO: búscame los dos mejores huecos para ir al gimnasio esta semana por la mañana durante 2h
+
+RESPUESTA DEL AGENTE: Los mejores huecos para ir al gimnasio son: 1. Lunes 20 de enero de 08:00 a 10:00, 2. Martes 21 de enero de 09:00 a 11:00. ¿Agendo alguno?
+
+RESPUESTA DEL USUARIO: sí, añade la segunda en color rojo"
+  Respuesta:
+  {
+    "function": "create_event",
+    "parameters": {
+      "summary": "Gimnasio",
+      "start_date": "2025-01-21",
+      "start_time": "09:00",
+      "end_date": "2025-01-21",
+      "end_time": "11:00",
+      "colorId": "11"
+    }
+  }
+
+  Usuario: "PETICIÓN ORIGINAL DEL USUARIO: crea una reunión con Juan el viernes a las 10
+
+RESPUESTA DEL AGENTE: Conflicto detectado para 'Reunión con Juan'. Ya hay un evento a esa hora. Alternativas: 1. Viernes 17 de 15:00 a 16:00, 2. Viernes 17 de 17:00 a 18:00.
+
+RESPUESTA DEL USUARIO: la primera"
+  Respuesta:
+  {
+    "function": "create_event",
+    "parameters": {
+      "summary": "Reunión con Juan",
+      "start_date": "2025-01-17",
+      "start_time": "15:00",
+      "end_date": "2025-01-17",
+      "end_time": "16:00"
+    }
+  }
+
+  Usuario: "PETICIÓN ORIGINAL DEL USUARIO: busca hueco para cena de equipo el sábado
+
+RESPUESTA DEL AGENTE: He encontrado estos huecos: 1. Sábado 25 de 20:00 a 22:00, 2. Domingo 26 de 21:00 a 23:00.
+
+RESPUESTA DEL USUARIO: la 1 y ponle descripción 'celebración trimestral'"
+  Respuesta:
+  {
+    "function": "create_event",
+    "parameters": {
+      "summary": "Cena de equipo",
+      "start_date": "2025-01-25",
+      "start_time": "20:00",
+      "end_date": "2025-01-25",
+      "end_time": "22:00",
+      "description": "celebración trimestral"
+    }
+  }
+
+  Usuario: "PETICIÓN ORIGINAL DEL USUARIO: búscame 3 huecos para estudiar esta semana
+
+RESPUESTA DEL AGENTE: He encontrado estos huecos para estudiar: 1. Lunes 20 de 10:00 a 12:00, 2. Martes 21 de 14:00 a 16:00, 3. Miércoles 22 de 09:00 a 11:00.
+
+RESPUESTA DEL USUARIO: añade los 3"
+  Respuesta:
+  [
+    {
+      "function": "create_event",
+      "parameters": {
+        "summary": "Estudiar",
+        "start_date": "2025-01-20",
+        "start_time": "10:00",
+        "end_date": "2025-01-20",
+        "end_time": "12:00"
+      }
+    },
+    {
+      "function": "create_event",
+      "parameters": {
+        "summary": "Estudiar",
+        "start_date": "2025-01-21",
+        "start_time": "14:00",
+        "end_date": "2025-01-21",
+        "end_time": "16:00"
+      }
+    },
+    {
+      "function": "create_event",
+      "parameters": {
+        "summary": "Estudiar",
+        "start_date": "2025-01-22",
+        "start_time": "09:00",
+        "end_date": "2025-01-22",
+        "end_time": "11:00"
+      }
+    }
+  ]
+
+  Usuario: "PETICIÓN ORIGINAL DEL USUARIO: busca 3 huecos para yoga esta semana
+
+RESPUESTA DEL AGENTE: He encontrado estos huecos: 1. Lunes 20 de 07:00 a 08:00, 2. Martes 21 de 18:00 a 19:00, 3. Jueves 23 de 07:00 a 08:00.
+
+RESPUESTA DEL USUARIO: añade los 3 pero la del martes ponla a las 19:00"
+  Respuesta:
+  [
+    {
+      "function": "create_event",
+      "parameters": {
+        "summary": "Yoga",
+        "start_date": "2025-01-20",
+        "start_time": "07:00",
+        "end_date": "2025-01-20",
+        "end_time": "08:00"
+      }
+    },
+    {
+      "function": "create_event",
+      "parameters": {
+        "summary": "Yoga",
+        "start_date": "2025-01-21",
+        "start_time": "19:00",
+        "end_date": "2025-01-21",
+        "end_time": "20:00"
+      }
+    },
+    {
+      "function": "create_event",
+      "parameters": {
+        "summary": "Yoga",
+        "start_date": "2025-01-23",
+        "start_time": "07:00",
+        "end_date": "2025-01-23",
+        "end_time": "08:00"
+      }
+    }
+  ]
   """
 
 
@@ -607,5 +746,44 @@ def analysis_prompt(function_name, raw_data_str, user_query):
       prompt = f"""
     Analiza los siguientes datos y responde a la petición del usuario de forma útil:
     {raw_data_str}
+    """
+    return prompt
+
+
+def proposer_prompt(user_query: str, raw_data_str: str, conflict_info: str = "") -> str:
+    """
+    Genera el prompt para el nodo proposer cuando hay conflicto de horarios.
+    Usa LLM para presentar opciones de huecos alternativos de forma atractiva.
+    """
+    prompt = f"""
+    Eres un asistente de agenda inteligente y servicial.
+    Tu objetivo es presentar opciones de horarios al usuario de forma clara y atractiva.
+    
+    CONTEXTO DEL CONFLICTO:
+    {conflict_info}
+    
+    PREGUNTA ORIGINAL DEL USUARIO:
+    "{user_query}"
+
+    DATOS CRUDOS RECIBIDOS (Lista de huecos ISO):
+    {raw_data_str}
+
+    INSTRUCCIONES DE RAZONAMIENTO (Chain of Thought):
+    1.**Analizar Semántica:** Lee la pregunta del usuario y busca pistas sobre el tipo de evento.
+        - ¿Menciona "Cena"? -> Prioriza huecos a partir de las 20:00.
+        - ¿Menciona "Comida" o "Almuerzo"? -> Prioriza huecos entre 13:00 y 15:00.
+        - ¿Menciona "Desayuno"? -> Prioriza huecos por la mañana.
+        - ¿Menciona "Reunión" o "Trabajo"? -> Prioriza horario laboral (09:00-18:00).
+        - ¿Menciona "Fiesta" o "Salir"? -> Prioriza tarde/noche.
+        - etc
+    2.**Filtrar y Seleccionar:**
+        - Selecciona los 5 mejores huecos que encajen con la naturaleza del evento.
+        
+    3.**Formatear:** Convierte las fechas ISO a lenguaje natural amigable (ej: "Lunes 17 de 17:00 a 18:00").
+    4.**Responder:** Presenta las opciones de forma clara y numerada.
+        - Si la lista de datos está vacía, di claramente que no hay huecos alternativos y ofrece 'cancelar'.
+        - Al final, indica al usuario que puede elegir una opción o 'cancelar'.
+    
+    Tu respuesta final (solo el texto para el usuario):
     """
     return prompt

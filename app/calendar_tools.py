@@ -248,7 +248,7 @@ def get_id(user_id: str, summary, start_date=None, end_date=None, calendar_id="p
 
 
 def delete_event(user_id: str, summary, start_date=None, end_date=None, calendar_id="primary"):
-    event_id = get_id(summary, start_date, end_date, calendar_id, get_calendar_service(user_id))
+    event_id = get_id(user_id, summary, start_date, end_date, calendar_id)
     if not event_id:
         return {
             "response": f"No se encontró el evento “{summary}”.",
@@ -403,7 +403,7 @@ def get_events(user_id: str, summary=None, start_date=None, end_date=None, calen
 
 
 def patch_event(user_id: str, summary, start_date=None, changes=None):
-    event_id = get_id(summary, start_date, None, "primary", get_calendar_service(user_id))
+    event_id = get_id(user_id, summary, start_date, None, "primary")
     if not event_id:
         return {
             "response": f"No se encontró el evento “{summary}”.",
@@ -696,7 +696,7 @@ def get_events_json(user_id: str):
     Obtiene TODOS los eventos (pasados y futuros) para el Frontend.
     """
     try:
-        service = get_calendar_service(user_id)()
+        service = get_calendar_service(user_id)
         past_date = (datetime.now(LOCAL_TZ) - timedelta(days=365)).isoformat()
         
         events_result = service.events().list(

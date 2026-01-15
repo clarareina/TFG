@@ -1,9 +1,6 @@
 from app.nodes import app 
 from langgraph.types import Command
 
-# dice qué "cajón" de memoria usar
-config = {"configurable": {"thread_id": "conversation_1"}}
-
 
 def run_agent(user_input: str, user_id: str) -> dict:
     """
@@ -11,6 +8,9 @@ def run_agent(user_input: str, user_id: str) -> dict:
     - {"status": "complete", "response": "..."} si terminó
     - {"status": "waiting", "response": "...", "suggested_slots": [...]} si espera decisión
     """
+    # Usar thread_id único por usuario para evitar mezcla de estados
+    config = {"configurable": {"thread_id": f"conversation_{user_id}"}}
+    
     # Primero verificamos si hay un interrupt pendiente (el flujo está pausado)
     state = app.get_state(config)
     
@@ -49,3 +49,4 @@ def run_agent(user_input: str, user_id: str) -> dict:
                 result = event["confirmer"].get("final_response")
         
         return {"status": "complete", "response": result or "Error"}
+

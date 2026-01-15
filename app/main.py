@@ -136,3 +136,61 @@ async def api_get_events(user_id: str = Query(..., description="Email del usuari
         
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Error de autenticación o conexión: {str(e)}")
+
+
+@app.get("/api/recommendations")
+async def get_recommendations(user_id: str = Query(..., description="Email del usuario")):
+    """
+    Endpoint separado para recomendaciones. Llama directamente a Gemini sin usar el grafo del agente.
+    Esto evita que se mezclen estados con el chat.
+    """
+    from .services.gemini_client import generar_respuesta
+    
+    if not user_id:
+        return {"recommendation": "Inicia sesión para ver recomendaciones."}
+    
+    try:
+        # Obtener eventos de los próximos 7 días
+        service = get_calendar_service(user_id)
+        now = datetime.now(LOCAL_TZ)
+        end_date = (now + timedelta(days=7)).isoformat()
+        
+        events_result = service.events().list(
+            calendarId='primary',
+            timeMin=now.isoformat(),
+            timeMax=end_date,
+            maxResults=50,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        
+        events = events_result.get('items', [])
+        
+        # Formatear eventos para el prompt
+        if events:
+            events_text = "\n".join([
+                f"- {e.get('summary', 'Sin título')}: {e['start'].get('dateTime', e['start'].get('date', ''))}"
+                for e in events
+            ])
+        else:
+            events_text = "No hay eventos programados."
+        
+        # Generar recomendación con Gemini
+        prompt = f"""Eres un asistente de productividad. Basándote en los eventos del usuario para los próximos 7 días, 
+genera una recomendación breve y útil (máximo 3-4 líneas, en puntos).
+
+EVENTOS:
+{events_text}
+
+FECHA ACTUAL: {now.strftime('%A %d de %B de %Y')}
+
+Responde directamente con la recomendación, sin introducciones ni explicaciones."""
+        
+        response = generar_respuesta(prompt)
+        recommendation = response.strip() if isinstance(response, str) else str(response).strip()
+        
+        return {"recommendation": recommendation}
+        
+    except Exception as e:
+        print(f"[Recommendations Error] {e}")
+        return {"recommendation": "No se pudo generar la recomendación."}
