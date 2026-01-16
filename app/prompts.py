@@ -47,9 +47,10 @@ def tool_prompt():
   Parámetros: ninguno.
 
   7) delete_date_events
-  Elimina eventos según fecha o rango de fecha
-  Parámetros: summary, start_date, end_date.
-  Llama a get_id para obtener los eventId.
+  Elimina TODOS los eventos en un rango de fechas.
+  Parámetros OBLIGATORIOS: start_date, end_date (ambos son requeridos, NUNCA omitir).
+  Si el usuario dice "borra todo" sin fechas, usa la fecha de hoy como start_date y end_date.
+  Si dice "borra los de la semana", calcula start_date (lunes) y end_date (domingo) de esa semana.
   ────────────────────────────────────────
   Reglas de interpretación (OBLIGATORIAS)
 

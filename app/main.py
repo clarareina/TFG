@@ -235,7 +235,7 @@ async def get_recommendations(user_id: str = Query(..., description="Email del u
         Mira estos eventos de la semana:
         {events_text}
         
-        Dame una recomendación o resumen para los próximos 7 días por puntos. Responde directamente con la recomendación, sin introducciones, aclaraciones ni referencias a fuentes. Máximo 3 líneas.   """
+        Dame una recomendación breve o resumen para los próximos 7 días por puntos. Responde directamente con la recomendación, sin introducciones, aclaraciones ni referencias a fuentes. Máximo 3 líneas.   """
         
         response = generar_respuesta(prompt)
         recommendation = response.strip() if isinstance(response, str) else str(response).strip()
@@ -243,4 +243,4 @@ async def get_recommendations(user_id: str = Query(..., description="Email del u
         return {"recommendation": recommendation}
         
     except Exception as e:
-        return {"recommendation": "No pude generar recomendaciones hoy."}
+        return {"recommendation": "No pude generar recomendaciones."}

@@ -200,7 +200,7 @@ def create_event(
         if "out of range" in error_msg or "match format" in error_msg:
             return{"response": "Error: La fecha u hora indicada no es válida.", "undo_info": None}
         else:
-            return {"response": f"Hubo un error técnico al crear el evento: {str(e)}", "undo_info": None}
+            return {"response": f"Hubo un error técnico al crear el evento, intentalo de nuevo.", "undo_info": None}
     
 
 def get_id(user_id: str, summary, start_date=None, end_date=None, calendar_id="primary"):
@@ -227,10 +227,22 @@ def get_id(user_id: str, summary, start_date=None, end_date=None, calendar_id="p
         ).execute()
 
         events = events_result.get("items", [])
+        
+        # Normalizar texto (quitar tildes y minúsculas)
+        import unicodedata
+        def normalize(text):
+            # Quitar tildes y convertir a minúsculas
+            text = unicodedata.normalize('NFD', text)
+            text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+            return text.lower()
+        
+        summary_normalized = normalize(summary)
 
+        # Búsqueda exacta (ignorando mayúsculas y tildes)
         for e in events:
             event_start = e["start"].get("dateTime", e["start"].get("date"))
-            if e.get("summary", "").lower() == summary.lower():
+            event_summary = normalize(e.get("summary", ""))
+            if event_summary == summary_normalized:
                 if user_gave_date:
                     if event_start[:10] == start_date[:10]:
                         return e["id"]
@@ -239,7 +251,7 @@ def get_id(user_id: str, summary, start_date=None, end_date=None, calendar_id="p
 
     except ValueError:
         print("[get_id] Error: Se intentó buscar con una fecha inválida.")
-        return None  # Si la fecha es mala, simplemente decimos "no encontré el ID"
+        return None
     
     return None  
 
@@ -474,6 +486,8 @@ def duplicate_event(user_id: str, summary=None, original_date=None, new_date=Non
 
         if not original_date:
             original_date = datetime.now(LOCAL_TZ).isoformat()
+        elif len(original_date) == 10:
+            original_date = datetime.fromisoformat(original_date).replace(tzinfo=LOCAL_TZ).isoformat()
 
         eventos = get_calendar_service(user_id).events().list(
             calendarId=calendar_id,
@@ -496,7 +510,7 @@ def duplicate_event(user_id: str, summary=None, original_date=None, new_date=Non
             new_time = original["start"].get("dateTime", original["start"].get("date", "00:00"))[11:16]
 
         result_package = create_event(
-            service=get_calendar_service(user_id),
+            user_id=user_id,
             summary=original.get("summary", "(sin título)"),
             start_date=new_date,
             start_time=new_time,

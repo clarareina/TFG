@@ -28,8 +28,13 @@ def generar_respuesta(prompt, temp=0.2):
         model = genai.GenerativeModel("gemini-2.5-flash")
         response = model.generate_content(prompt, stream=True, generation_config={"temperature": temp})
 
-
     full_text = ""
-    for chunk in response:
-        full_text += chunk.text
-    return full_text #response no es string
+    try:
+        for chunk in response:
+            if hasattr(chunk, 'text') and chunk.text:
+                full_text += chunk.text
+    except Exception as e:
+        if not full_text:
+            return "No pude generar una respuesta. Por favor, inténtalo de nuevo."
+    
+    return full_text if full_text else "No pude generar una respuesta. Por favor, inténtalo de nuevo."

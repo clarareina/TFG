@@ -55,10 +55,15 @@ def router_node(state: AgentState) -> dict:
     
     message = raw_msg.lower().strip()
 
+    # Detectar saludos y preguntas simples PRIMERO
+    greetings = ["hola", "buenos días", "buenas tardes", "buenas noches", "hey", "qué tal", "cómo estás", "como estas"]
+    if any(message.startswith(g) or message == g for g in greetings):
+        print(f"[Router] (Chat)")
+        return {"routing_decision": "chat"}
     
     strong_tool_keywords = [
-        "crea", "borra", "elimina", "agenda", "pon ", "quita", "modifica", 
-        "cambia", "duplica", "cancela", "reunión", "deshaz", "revierte", "muestra", "lista"]
+        "crea", "borra", "elimina", "agenda", "pon ", "quita", "modifica", "mueve" ,
+        "cambia", "duplica", "cancela", "deshaz", "revierte", "muestra", "lista"]
     
     if any(w in message for w in strong_tool_keywords):
         print(f"[Router] (Tool)")
@@ -84,7 +89,9 @@ def router_node(state: AgentState) -> dict:
         - Para cuestiones breves relacionadas con calendario ("Mañana será 10 de febrero")
         - Para cuentas atrás de días
         - Para preguntas sobre qué día es hoy o qué día será
-        - Para temas que NO tienen nada que ver con el calendario (chistes, el tiempo, política).
+        - Para temas que NO tienen nada que ver con el calendario (chistes, el tiempo, correos, política).
+        - Peticiones que parezcan peligrosas u ofensivas.
+    
    
     Petición: "{raw_msg}" # Usamos el mensaje original con mayúsculas para el LLM
     
@@ -265,117 +272,159 @@ def confirmation_node(state: dict) -> dict:
 def verification_node(state: AgentState) -> dict:
     """
     Verifica si hay conflictos horarios antes de crear, duplicar o editar.
+    Ahora verifica TODAS las acciones, no solo la primera.
     """
     action_list = state.get('structured_json_list', [])
     current_user_id = state.get('user_id') 
-    if not action_list or len(action_list) > 1:
-        return {}
-        
-    action = action_list[0]
-    function_name = action.get("function")
-    parameters = action.get("parameters", {})
-
-    check_start = None
-    check_end = None
-
-    if function_name == "create_event":
-        start_date = parameters.get("start_date")
-        start_time = parameters.get("start_time")
-        end_date = parameters.get("end_date")
-        end_time = parameters.get("end_time")
-
-        if not start_date:
-            return {}
-        
-        if not start_time:
-            # Evento de día completo
-            check_start = start_date
-            check_end = end_date if end_date else start_date
-        else:
-            try:
-                start_dt = datetime.strptime(f"{start_date} {start_time}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
-                if not end_time:
-                    end_dt = start_dt + timedelta(hours=1)
-                else:
-                    end_dt = datetime.strptime(f"{end_date or start_date} {end_time}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
-
-                check_start = start_dt.isoformat()
-                check_end = end_dt.isoformat()
-            except ValueError as e:
-                return {}
-        
-    elif function_name == "duplicate_event":
-        start_date = parameters.get("new_date")
-        start_time = parameters.get("new_time")
-
-        if not start_date:
-            return {}
-        
-        try:
-            start_dt = datetime.strptime(f"{start_date} {start_time or '00:00'}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
-            end_dt = start_dt + timedelta(hours=1) # Asumimos 1h por defecto para duplicados
-            check_start = start_dt.isoformat()
-            check_end = end_dt.isoformat()
-        except ValueError as e:
-            return {}
-                
-    elif function_name == "patch_event":
-        changes = parameters.get("changes", {})
-        if "start" in changes:
-            start_data = changes.get("start", {})
-            end_data = changes.get("end", {}) 
-            start_str = start_data.get("dateTime", start_data.get("date"))
-            end_str = end_data.get("dateTime", end_data.get("date"))
-            
-            if not start_str or not end_str:
-                 # Si no se están modificando las fechas, no hay conflicto que verificar
-                 return {}
-
-            try:
-                # Parsear el string naive (ej. "2025-11-08T12:00:00")
-                naive_start = datetime.fromisoformat(start_str)
-                naive_end = datetime.fromisoformat(end_str)
-
-                # Asignar zona horaria local
-                aware_start = naive_start.replace(tzinfo=LOCAL_TZ)
-                aware_end = naive_end.replace(tzinfo=LOCAL_TZ)
-                
-                check_start = aware_start.isoformat()
-                check_end = aware_end.isoformat()
-
-            except ValueError as e:
-                return {}
-        else:
-            # Si el patch no incluye 'start', no hay nada que verificar
-            return {}
-    else:
-        # Si la función no es create, duplicate o patch, no verificamos
-        return {}
-
-    if not check_start:
-        # Si ninguna lógica asignó fechas (p.ej. patch sin 'start'), salimos
+    
+    if not action_list:
         return {}
     
-    scan_result_package = calendar_tools.get_events(
-        user_id=current_user_id, 
-        start_date=check_start, 
-        end_date=check_end,
-        max=2500 
-    )
+    # Iterar por cada acción y verificar conflictos
+    for action in action_list:
+        function_name = action.get("function")
+        parameters = action.get("parameters", {})
 
-    scan_response_str = scan_result_package.get("response", "")
+        check_start = None
+        check_end = None
 
-    if "No se encontraron eventos" in scan_response_str:
-        result = VerificationResult(conflict_found=False, conflicting_events=[])
-        return {"verification_result": result, "pending_action": None}
+        if function_name == "create_event":
+            start_date = parameters.get("start_date")
+            start_time = parameters.get("start_time")
+            end_date = parameters.get("end_date")
+            end_time = parameters.get("end_time")
 
-    elif "Error" in scan_response_str or "inválida" in scan_response_str:
-        result = VerificationResult(conflict_found=False, conflicting_events=[])
-        return {"verification_result": result}
+            if not start_date:
+                continue  # Saltar esta acción, pasar a la siguiente
+            
+            if not start_time:
+                # Evento de día completo - no verificar conflictos
+                continue
+            else:
+                try:
+                    start_dt = datetime.strptime(f"{start_date} {start_time}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
+                    if not end_time:
+                        end_dt = start_dt + timedelta(hours=1)
+                    else:
+                        end_dt = datetime.strptime(f"{end_date or start_date} {end_time}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
+
+                    check_start = start_dt.isoformat()
+                    check_end = end_dt.isoformat()
+                except ValueError:
+                    continue
+            
+        elif function_name == "duplicate_event":
+            new_date = parameters.get("new_date")
+            new_time = parameters.get("new_time")
+            summary = parameters.get("summary")
+            original_date = parameters.get("original_date")
+
+            if not new_date or not summary:
+                print(f"[verification_node] duplicate: missing new_date or summary")
+                continue
+            
+            try:
+                # Siempre buscar el evento original para obtener hora y duración
+                if not original_date:
+                    original_date = datetime.now(LOCAL_TZ).isoformat()
+                elif len(original_date) == 10:
+                    original_date = datetime.fromisoformat(original_date).replace(tzinfo=LOCAL_TZ).isoformat()
+                
+                from .auth import get_calendar_service
+                eventos = get_calendar_service(current_user_id).events().list(
+                    calendarId="primary",
+                    timeMin=original_date,
+                    maxResults=10,
+                    singleEvents=True,
+                    orderBy="startTime",
+                    q=summary
+                ).execute().get("items", [])
+                
+                duration = timedelta(hours=1)  # default
+                
+                if eventos:
+                    original = eventos[0]
+                    orig_start_str = original["start"].get("dateTime")
+                    orig_end_str = original["end"].get("dateTime")
+                    
+                    if orig_start_str and orig_end_str:
+                        # Si no se especificó new_time, usar hora del original
+                        if not new_time:
+                            new_time = orig_start_str[11:16]  # HH:MM
+                        # Calcular duración real del original
+                        orig_start = datetime.fromisoformat(orig_start_str)
+                        orig_end = datetime.fromisoformat(orig_end_str)
+                        duration = orig_end - orig_start
+                    else:
+                        # Evento de día completo, no verificar conflictos
+                        continue
+                else:
+                    print(f"[verification_node] duplicate: no se encontró evento original '{summary}'")
+                    continue
+                
+                start_dt = datetime.strptime(f"{new_date} {new_time or '10:00'}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
+                end_dt = start_dt + duration
+                check_start = start_dt.isoformat()
+                check_end = end_dt.isoformat()
+                print(f"[verification_node] duplicate: checking {check_start} to {check_end}")
+            except Exception as e:
+                print(f"[verification_node] Error en duplicate: {e}")
+                continue
+                    
+        elif function_name == "patch_event":
+            changes = parameters.get("changes", {})
+            if "start" in changes:
+                start_data = changes.get("start", {})
+                end_data = changes.get("end", {}) 
+                start_str = start_data.get("dateTime", start_data.get("date"))
+                end_str = end_data.get("dateTime", end_data.get("date"))
+                
+                if not start_str or not end_str:
+                    continue
+
+                try:
+                    naive_start = datetime.fromisoformat(start_str)
+                    naive_end = datetime.fromisoformat(end_str)
+                    aware_start = naive_start.replace(tzinfo=LOCAL_TZ)
+                    aware_end = naive_end.replace(tzinfo=LOCAL_TZ)
+                    
+                    check_start = aware_start.isoformat()
+                    check_end = aware_end.isoformat()
+
+                except ValueError:
+                    continue
+            else:
+                continue
+        else:
+            # Si la función no es create, duplicate o patch, seguir
+            continue
+
+        # Si llegamos aquí, tenemos fechas para verificar
+        if not check_start:
+            continue
         
-    else:
-        result = VerificationResult(conflict_found=True, conflicting_events=[{"summary": scan_response_str}])
-        return {"verification_result": result, "pending_action": action}
+        scan_result_package = calendar_tools.get_events(
+            user_id=current_user_id, 
+            start_date=check_start, 
+            end_date=check_end,
+            max=2500 
+        )
+
+        scan_response_str = scan_result_package.get("response", "")
+
+        if "No se encontraron eventos" in scan_response_str:
+            # Sin conflicto para esta acción, continuar verificando las demás
+            continue
+        elif "Error" in scan_response_str or "inválida" in scan_response_str:
+            continue
+        else:
+            # ¡Conflicto encontrado! Retornar inmediatamente
+            result = VerificationResult(conflict_found=True, conflicting_events=[{"summary": scan_response_str}])
+            return {"verification_result": result, "pending_action": action}
+    
+    # Si llegamos aquí, ninguna acción tiene conflicto
+    result = VerificationResult(conflict_found=False, conflicting_events=[])
+    return {"verification_result": result, "pending_action": None}
 
 
 
@@ -401,6 +450,7 @@ def propose_node(state:AgentState) -> dict:
     end_date_str = parameters.get("end_date")
     end_time_str = parameters.get("end_time")
     duration_minutes = 60 # Valor por defecto si falla el cálculo
+    start_dt = None  # Inicializar para evitar error de variable no definida
 
     # Lógica para calcular la duración exacta que el usuario quiere
     if start_date_str and start_time_str and end_date_str and end_time_str: # Evento con inicio y fin
@@ -420,6 +470,10 @@ def propose_node(state:AgentState) -> dict:
         duration_minutes = 1440
 
     duration = timedelta(minutes=duration_minutes)
+    
+    # Fallback: si no se pudo calcular start_dt, usar fecha actual
+    if start_dt is None:
+        start_dt = datetime.now(LOCAL_TZ)
     
     # rango de búsqueda: desde fecha solicitada hasta 2 semanas después
     datetime_min = start_dt.replace(tzinfo=LOCAL_TZ).isoformat()
