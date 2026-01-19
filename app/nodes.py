@@ -683,7 +683,9 @@ def analysis_node(state: dict) -> dict:
     raw_data_str = str(state.get('api_response_list', []))
     user_query = state.get('input_user', '')  
 
-    prompt_final = analysis_prompt(function_name, raw_data_str, user_query)
+    user_preferences = state.get('user_preferences', '')
+
+    prompt_final = analysis_prompt(function_name, raw_data_str, user_query, user_preferences)
     response_text = generar_respuesta(prompt_final).strip()
     
     # Determinar si hay opciones accionables

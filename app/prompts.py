@@ -658,17 +658,28 @@ def reasoning_prompt():
   return prompt
 
 
-def analysis_prompt(function_name, raw_data_str, user_query):
+def analysis_prompt(function_name, raw_data_str, user_query, user_preferences=""):
     """
     Genera el prompt de razonamiento (CoT) específico para cada tipo de tarea.
     """
-
+    preferences = ""
+    if user_preferences:
+          preferences = f"""
+      [IMPORTANTE] PREFERENCIAS PERMANENTES DEL USUARIO:
+      "{user_preferences}"
+      
+      (Debes respetar estas preferencias estrictamente al filtrar opciones, 
+      usar un tono específico o estimar duraciones).
+      """
+          
     # CASO 1: SI VENIMOS DE BUSCAR HUECOS (find_free_slots)
     if function_name == "find_free_slots":
       prompt = f"""
     Eres un asistente de agenda inteligente y servicial.
     Tu objetivo es presentar opciones de horarios al usuario de forma clara y atractiva.
     
+    {preferences}
+
     PREGUNTA ORIGINAL DEL USUARIO:
     "{user_query}"
 
@@ -699,6 +710,8 @@ def analysis_prompt(function_name, raw_data_str, user_query):
     Eres un analista de productividad personal.
     Tu objetivo es resumir la carga de trabajo del usuario basándote en los datos de su calendario.
 
+    {preferences}
+
     PREGUNTA ORIGINAL DEL USUARIO:
     "{user_query}"
 
@@ -727,6 +740,9 @@ def analysis_prompt(function_name, raw_data_str, user_query):
       prompt = f"""
     Eres un experto en planificación temporal.
     El usuario quiere saber cuánto tiempo le llevará una tarea.
+    
+    {preferences}
+
     PREGUNTA ORIGINAL DEL USUARIO:
       "{user_query}"
 

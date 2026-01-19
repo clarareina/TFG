@@ -8,6 +8,7 @@ from app.auth import get_calendar_service, startup_check_all_sessions
 from app.database import init_db
 from app.flow import run_agent
 from zoneinfo import ZoneInfo
+from app.database import SessionLocal, User
 import json
 
 from fastapi.staticfiles import StaticFiles
@@ -62,6 +63,9 @@ class AgentResponse(BaseModel):
     response: str
     suggested_slots: Optional[list] = None
 
+class PreferencesRequest(BaseModel):
+    user_id: str
+    text: str
 
 # 5. ENDPOINTS 
 # @app.get("/")
@@ -134,6 +138,32 @@ def reset_user_conversation(user_id: str = Query(..., description="Email del usu
         print(f"[Reset Error] {e}")
         return {"status": "error", "message": "No se pudo resetear la conversación."}
 
+
+# Endpoint para GUARDAR preferencias
+@app.post("/api/preferences")
+def save_preferences(req: PreferencesRequest):
+    db = SessionLocal()
+    user = db.query(User).filter(User.email == req.user_id).first()
+    if not user:
+        db.close()
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    user.preferences = req.text
+    db.commit()
+    db.close()
+    return {"status": "success", "message": "Preferencias guardadas"}
+
+# Endpoint para LEER preferencias
+@app.get("/api/preferences")
+def get_preferences(user_id: str = Query(...)):
+    db = SessionLocal()
+    user = db.query(User).filter(User.email == user_id).first()
+    db.close()
+    if not user:
+        return {"preferences": ""}
+    return {"preferences": user.preferences or ""}
+
+
 @app.post("/api/chat", response_model=AgentResponse)
 async def chat_endpoint(request: UserRequest):
     """
@@ -142,8 +172,12 @@ async def chat_endpoint(request: UserRequest):
     3. Devuelve la respuesta o pide más información.
     """
     try:
-        # Ejecuta la lógica inteligente (flow.py)
-        agent_result = run_agent(request.query, request.user_id) 
+        # Recuperamos las preferencias de la BD antes
+        db = SessionLocal()
+        user = db.query(User).filter(User.email == request.user_id).first()
+        user_prefs = user.preferences if user and user.preferences else ""
+        db.close()    
+        agent_result = run_agent(request.query, request.user_id, user_preferences=user_prefs) 
         
         # Protección contra resultado None
         if agent_result is None:
@@ -173,6 +207,7 @@ async def chat_endpoint(request: UserRequest):
             status="error",
             response="Lo siento, ha ocurrido un problema, intentalo de nuevo."
         )
+
 
 @app.get("/api/calendar/events")
 async def api_get_events(user_id: str = Query(..., description="Email del usuario")):

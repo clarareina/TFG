@@ -5,15 +5,11 @@ import CalendarView from './components/CalendarInterface'
 import UpcomingEvents from './components/EventsInterface'
 import StatsInterface from './components/StatsInterface'
 
-// 1. Miramos si en el navegador pone "localhost"
+// 1. Detección de entorno (Local vs Nube)
 const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-
-// 2. Elegimos la URL correcta automáticamente
-// exportamos esta variable para otros archivos
 export const API_BASE_URL = isLocal 
   ? "http://localhost:8000" 
   : "https://tgf-v1-11980723519.europe-southwest1.run.app";
-
 
 
 const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
@@ -32,13 +28,9 @@ const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
         localStorage.setItem("tfg_user_id", email)
         onLogin()
       } else {
-        // Si no tiene sesión, pedimos la URL de Google
-        // window.location.origin detecta automáticamente si es localhost:5173 o tu web en la nube
         const redirectUri = window.location.origin 
-        
         const urlRes = await fetch(`${API_BASE_URL}/api/auth/url?redirect_uri=${redirectUri}&login_hint=${email}`)
         const urlData = await urlRes.json()
-
         window.location.href = urlData.url
       }
     } catch (e) {
@@ -55,21 +47,14 @@ const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
     }}>
       <div className="card" style={{ width: '400px', alignItems: 'center', gap: '20px' }}>
         <h2>TFG</h2>
-        <p style={{ color: '#666', textAlign: 'center' }}>
-          Inicia sesión
-        </p>
-
+        <p style={{ color: '#666', textAlign: 'center' }}>Inicia sesión</p>
         <input
-          type="email"
-          placeholder="email@gmail.com"
-          value={email}
+          type="email" placeholder="email@gmail.com" value={email}
           onChange={e => setEmail(e.target.value)}
           style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
         />
-
         <button
-          onClick={handleLogin}
-          disabled={isLoading}
+          onClick={handleLogin} disabled={isLoading}
           style={{
             width: '100%', padding: '12px', background: '#2563eb', color: 'white',
             border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
@@ -87,6 +72,12 @@ function App() {
   const [userId, setUserId] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(true)
 
+  // --- ESTADOS PARA PREFERENCIAS ---
+  const [showPrefs, setShowPrefs] = useState(false)
+  const [prefsText, setPrefsText] = useState("") // Aquí se guarda el texto cargado
+  const [isSavingPrefs, setIsSavingPrefs] = useState(false)
+
+  // 1. Auth inicial
   useEffect(() => {
     const checkAuth = async () => {
       const params = new URLSearchParams(window.location.search)
@@ -96,16 +87,12 @@ function App() {
         try {
           const body = JSON.stringify({
             code,
-            redirect_uri: window.location.origin // Esto vale para local y nube
+            redirect_uri: window.location.origin
           })
-          
           const headers = { "Content-Type": "application/json" }
           
-          // USAMOS LA URL AUTOMÁTICA
           const res = await fetch(`${API_BASE_URL}/api/auth/callback`, {
-            method: "POST",
-            headers,
-            body
+            method: "POST", headers, body
           })
           const data = await res.json()
 
@@ -125,23 +112,53 @@ function App() {
       }
 
       const savedUser = localStorage.getItem("tfg_user_id")
-      if (savedUser) {
-        setUserId(savedUser)
-      }
+      if (savedUser) setUserId(savedUser)
       setIsProcessing(false)
     }
 
     checkAuth()
   }, [])
 
+  // 2. CARGAR PREFERENCIAS ANTIGUAS
+  // Esto se ejecuta en cuanto se sabe quién es el usuario.
+  // Rellena la variable 'prefsText' con lo que hay en la base de datos.
+  useEffect(() => {
+    if (userId) {
+      fetch(`${API_BASE_URL}/api/preferences?user_id=${userId}`)
+        .then(res => res.json())
+        .then(data => {
+            // Si hay texto guardado, lo ponemos. Si no, texto vacío.
+            setPrefsText(data.preferences || "") 
+        })
+        .catch(err => console.error("Error cargando prefs", err))
+    }
+  }, [userId])
+
+  // 3. GUARDAR
+  // Envía TODO lo que haya en la caja de texto a la base de datos.
+  const handleSavePrefs = async () => {
+    if (!userId) return
+    setIsSavingPrefs(true)
+    try {
+      await fetch(`${API_BASE_URL}/api/preferences`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, text: prefsText })
+      })
+      setShowPrefs(false)
+      alert("✅Preferencias actualizadas")
+    } catch (e) {
+      alert("Error al guardar preferencias.")
+    }
+    setIsSavingPrefs(false)
+  }
+
   const handleLogout = () => {
     localStorage.removeItem("tfg_user_id")
     setUserId(null)
   }
 
-  if (isProcessing) {
-    return <div style={{ display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center' }}>Cargando...</div>
-  }
+  if (isProcessing) return <div style={{ display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center' }}>Cargando...</div>
 
   if (!userId) {
     return <LoginScreen onLogin={() => {
@@ -153,11 +170,83 @@ function App() {
   return (
     <div className="layout-dashboard">
 
+      {/* PREFERENCIAS */}
+      {showPrefs && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+          backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999,
+          display: 'flex', justifyContent: 'center', alignItems: 'center'
+        }}>
+          <div className="card" style={{ 
+            width: '600px', 
+            maxWidth: '95%', 
+            padding: '40px', 
+            display: 'flex', flexDirection: 'column', gap: '15px',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.3)', // Sombra más elegante
+            borderRadius: '12px'
+          }}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <h3 style={{margin:0, fontSize:'1.3rem'}}>⚙️ Mis Preferencias</h3>
+                <button onClick={() => setShowPrefs(false)} style={{background:'none', border:'none', fontSize:'1.5rem', cursor:'pointer', color:'#666'}}>✕</button>
+            </div>
+            
+            <p style={{fontSize: '0.95rem', color: '#555', lineHeight:'1.5'}}>
+              Escribe aquí tus preferencias e instrucciones fijas para el asistente
+            </p>
+            
+            {/* TEXTAREA: Muestra 'prefsText', que ya contiene lo antiguo de la BD */}
+            <textarea
+              rows={8}
+              value={prefsText}
+              onChange={(e) => setPrefsText(e.target.value)}
+              placeholder="Ejemplo:&#10;- Trabajo de 9:00 a 18:00&#10;- Los viernes salgo a las 15:00&#10;- No me pongas reuniones los viernes&#10;- Prefiero ir al gimnasio por la tarde&#10;- ..."
+              style={{ 
+                width: '100%', padding: '10px', borderRadius: '8px', 
+                border: '1px solid #ccc', resize: 'vertical', fontFamily: 'inherit',
+                fontSize: '1rem', lineHeight: '1.5'
+              }}
+            />
+
+            <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', marginTop: '10px' }}>
+              <button 
+                onClick={() => setShowPrefs(false)} 
+                style={{ padding: '10px 20px', background: 'transparent', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', fontSize:'0.95rem' }}>
+                Cancelar
+              </button>
+              <button 
+                onClick={handleSavePrefs}
+                disabled={isSavingPrefs}
+                style={{ 
+                  padding: '10px 20px', background: '#2563eb', color: 'white', 
+                  border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight:'bold', 
+                  fontSize:'0.95rem', opacity: isSavingPrefs ? 0.7 : 1 
+                }}
+              >
+                {isSavingPrefs ? "Guardando..." : "Guardar Cambios"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CHAT */}
       <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', alignItems: 'center' }}>
           <h3 style={{ margin: 0 }}>Asistente</h3>
-          <button onClick={handleLogout} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.8rem', color: '#ef4444' }}>Cerrar Sesión</button>
+          
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button 
+                onClick={() => setShowPrefs(true)}
+                title="Configurar Preferencias"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.4rem' }}
+            >
+                ⚙️
+            </button>
+            <button onClick={handleLogout} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.8rem', color: '#ef4444' }}>
+                Cerrar Sesión
+            </button>
+          </div>
+
         </div>
         <ChatInterface userId={userId} />
       </div>

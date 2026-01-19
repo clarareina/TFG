@@ -15,9 +15,8 @@ class User(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True) # El email no se puede repetir
-    
-    # Guardamos todo el JSON de Google como texto largo.
     google_token = Column(Text) 
+    preferences = Column(String, default="")
 
 def init_db():
     """Crea las tablas en el archivo si no existen."""

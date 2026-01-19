@@ -26,7 +26,8 @@ class AgentState(TypedDict):
         """
     input_user: str
     user_id: str
-
+    user_preferences: str
+    
     conversation_history: List[str]
 
     structured_json_list: Optional[List[Dict[str, Any]]]   # El JSON que sale de Gemini
