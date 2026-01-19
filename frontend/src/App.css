@@ -10,25 +10,25 @@ html {
   margin: 0;
   padding: 0;
   height: 100%;
-  overflow: hidden;
-  /* Evita que salga barra de scroll en la ventana */
+  width: 100%;
+  overflow: hidden; 
   font-family: system-ui, -apple-system, sans-serif;
+  background-color: var(--fondo-gris);
 }
 
 #root {
   height: 100%;
+  width: 100%;
 }
 
 .layout-dashboard {
   display: grid;
   height: 100vh;
-  width: 100%;
-  grid-template-columns: 450px 650px 350px;
+  width: 100vw; 
+  grid-template-columns: 1.2fr 1.8fr 1fr; 
   padding: var(--separacion);
-  margin: 10px 0;
   gap: var(--separacion);
   box-sizing: border-box;
-  background-color: var(--fondo-gris);
 }
 
 .card {
@@ -36,9 +36,11 @@ html {
   border-radius: 20px;
   padding: 20px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-  overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-height: 0; 
+  min-width: 0;
+  overflow: hidden; 
 }
 
 .right-column {
@@ -46,48 +48,37 @@ html {
   flex-direction: column;
   gap: var(--separacion);
   height: 100%;
-}
-
-.box-half {
-  flex: 1;
-  /* Ocupa la mitad del espacio vertical */
   min-height: 0;
 }
 
-
 /* --- ESTILOS DEL CHAT --- */
-
 .chat-container {
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow: hidden;
-  /* Importante para que no se rompa */
+  min-height: 0;
 }
 
 .messages-area {
   flex: 1;
-  /* Ocupa todo el espacio disponible */
   overflow-y: auto;
-  /* Scroll si hay muchos mensajes */
   padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-/* BURBUJAS */
 .message-bubble {
-  max-width: 80%;
+  max-width: 85%;
   padding: 10px 15px;
   border-radius: 15px;
   font-size: 0.9rem;
   line-height: 1.4;
+  word-wrap: break-word;
 }
 
 .message-bubble.user {
   align-self: flex-end;
-  /* A la derecha */
   background-color: #2563eb;
   color: white;
   border-bottom-right-radius: 2px;
@@ -95,13 +86,11 @@ html {
 
 .message-bubble.bot {
   align-self: flex-start;
-  /* A la izquierda */
   background-color: #e5e7eb;
   color: #1f2937;
   border-bottom-left-radius: 2px;
 }
 
-/* INPUT CÁPSULA */
 .input-wrapper {
   display: flex;
   align-items: center;
@@ -109,6 +98,7 @@ html {
   border-radius: 25px;
   padding: 5px 5px 5px 15px;
   margin-top: 10px;
+  flex-shrink: 0;
 }
 
 .input-wrapper input {
@@ -117,6 +107,7 @@ html {
   background: transparent;
   outline: none;
   font-size: 0.95rem;
+  min-width: 0;
 }
 
 .input-wrapper button {
@@ -130,5 +121,114 @@ html {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+/* --- ADAPTABILIDAD PARA MÓVILES (PESTAÑAS) --- */
+.mobile-nav {
+  display: none;
+}
+
+@media (max-width: 850px) {
+  body, html {
+    overflow: hidden; 
+  }
+
+  .layout-dashboard {
+    display: block;
+    padding: 10px; 
+    height: 100vh;
+    height: 100dvh; 
+    width: 100%;
+    box-sizing: border-box;
+    background-color: var(--fondo-gris);
+    position: relative;
+  }
+
+  .hidden-mobile {
+    display: none !important;
+  }
+
+  .active-mobile {
+    display: flex !important;
+    height: calc(100% - 90px) !important; 
+    width: 100% !important;
+    padding: 12px !important; /* Reducido para ganar espacio interno */
+    box-sizing: border-box;
+    margin-top: 5px;
+    margin-bottom: 85px; 
+    animation: fadeIn 0.3s ease;
+  }
+
+  /* Ajuste para las cajas de la derecha (Eventos y Recomendaciones) */
+  .right-column.active-mobile {
+    gap: 10px !important; /* Menor separación entre cajas arriba/abajo */
+  }
+
+  .right-column.active-mobile .card {
+    padding: 15px !important;
+    flex: 1 !important; /* Hacemos que se repartan el alto disponible */
+  }
+
+  /* Títulos más compactos en móvil */
+  .layout-dashboard h3 {
+    margin-top: 0;
+    margin-bottom: 10px !important;
+    font-size: 1.1rem;
+  }
+
+  /* Ajuste para el Modal de Desglose para que no se corte */
+  div[style*="position: fixed"] .card {
+    height: auto !important;
+    max-height: 85vh !important;
+    width: 92% !important;
+    padding: 20px !important;
+    overflow-y: auto !important; /* Permite scroll si el gráfico y texto no caben */
+  }
+
+  /* --- BARRA DE NAVEGACIÓN INFERIOR --- */
+  .mobile-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 75px; 
+    background: white;
+    box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.08); 
+    border-top: 1px solid #eee;
+    justify-content: space-around;
+    align-items: center;
+    padding-bottom: env(safe-area-inset-bottom); 
+    z-index: 9999;
+  }
+
+  .mobile-nav button {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-size: 1.4rem; 
+    cursor: pointer;
+    flex: 1;
+  }
+
+  .mobile-nav button span {
+    font-size: 0.65rem;
+    font-weight: 600;
+  }
+
+  .mobile-nav button.active {
+    color: #2563eb;
+    border-top: 2px solid #2563eb;
+    padding-top: 2px;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; }
+  }
 }

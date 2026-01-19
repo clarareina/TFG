@@ -77,6 +77,9 @@ function App() {
   const [prefsText, setPrefsText] = useState("") // Aquí se guarda el texto cargado
   const [isSavingPrefs, setIsSavingPrefs] = useState(false)
 
+  // --- NUEVO: ESTADO PARA PESTAÑAS EN MÓVIL ---
+  const [activeTab, setActiveTab] = useState<'chat' | 'calendar' | 'stats'>('chat')
+
   // 1. Auth inicial
   useEffect(() => {
     const checkAuth = async () => {
@@ -120,14 +123,11 @@ function App() {
   }, [])
 
   // 2. CARGAR PREFERENCIAS ANTIGUAS
-  // Esto se ejecuta en cuanto se sabe quién es el usuario.
-  // Rellena la variable 'prefsText' con lo que hay en la base de datos.
   useEffect(() => {
     if (userId) {
       fetch(`${API_BASE_URL}/api/preferences?user_id=${userId}`)
         .then(res => res.json())
         .then(data => {
-            // Si hay texto guardado, lo ponemos. Si no, texto vacío.
             setPrefsText(data.preferences || "") 
         })
         .catch(err => console.error("Error cargando prefs", err))
@@ -135,7 +135,6 @@ function App() {
   }, [userId])
 
   // 3. GUARDAR
-  // Envía TODO lo que haya en la caja de texto a la base de datos.
   const handleSavePrefs = async () => {
     if (!userId) return
     setIsSavingPrefs(true)
@@ -182,7 +181,7 @@ function App() {
             maxWidth: '95%', 
             padding: '40px', 
             display: 'flex', flexDirection: 'column', gap: '15px',
-            boxShadow: '0 20px 50px rgba(0,0,0,0.3)', // Sombra más elegante
+            boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
             borderRadius: '12px'
           }}>
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
@@ -194,7 +193,6 @@ function App() {
               Escribe aquí tus preferencias e instrucciones fijas para el asistente
             </p>
             
-            {/* TEXTAREA: Muestra 'prefsText', que ya contiene lo antiguo de la BD */}
             <textarea
               rows={8}
               value={prefsText}
@@ -229,8 +227,8 @@ function App() {
         </div>
       )}
 
-      {/* CHAT */}
-      <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column' }}>
+      {/* CHAT - Clases añadidas para móvil */}
+      <div className={`card ${activeTab === 'chat' ? 'active-mobile' : 'hidden-mobile'}`} style={{ padding: '20px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', alignItems: 'center' }}>
           <h3 style={{ margin: 0 }}>Asistente</h3>
           
@@ -251,8 +249,8 @@ function App() {
         <ChatInterface userId={userId} />
       </div>
 
-      {/* CALENDARIO */}
-      <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column' }}>
+      {/* CALENDARIO - Clases añadidas para móvil */}
+      <div className={`card ${activeTab === 'calendar' ? 'active-mobile' : 'hidden-mobile'}`} style={{ padding: '20px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <h3 style={{ margin: 0 }}>Calendario</h3>
           {isCalendarLoading && (
@@ -278,8 +276,8 @@ function App() {
         </div>
       </div>
 
-      {/* EVENTOS Y ESTADÍSTICAS */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--separacion)', overflow: 'hidden' }}>
+      {/* EVENTOS Y ESTADÍSTICAS - Clases añadidas para móvil */}
+      <div className={`right-column ${activeTab === 'stats' ? 'active-mobile' : 'hidden-mobile'}`} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--separacion)', overflow: 'hidden' }}>
         <div className="card" style={{ flex: 5, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ margin: '0 0 15px 0', flexShrink: 0 }}>Próximos Eventos</h3>
           <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
@@ -292,6 +290,20 @@ function App() {
           <StatsInterface userId={userId} />
         </div>
       </div>
+
+      {/* NUEVO: BARRA DE NAVEGACIÓN MÓVIL */}
+      <nav className="mobile-nav">
+        <button onClick={() => setActiveTab('chat')} className={activeTab === 'chat' ? 'active' : ''}>
+          💬 <span>Asistente</span>
+        </button>
+        <button onClick={() => setActiveTab('calendar')} className={activeTab === 'calendar' ? 'active' : ''}>
+          📅 <span>Calendario</span>
+        </button>
+        <button onClick={() => setActiveTab('stats')} className={activeTab === 'stats' ? 'active' : ''}>
+          📊 <span>Stats</span>
+        </button>
+      </nav>
+
     </div>
   )
 }

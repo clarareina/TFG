@@ -20,7 +20,7 @@ interface DistributionData {
     name: string
     value: number
     minutes: number
-    [key: string]: any; //Este objeto tiene nombre, valor y minutos, y además puede tener cualquier otra cosa extra que la librería necesite
+    [key: string]: any; 
 }
 
 interface StatsInterfaceProps {
@@ -42,6 +42,8 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
     const [distributionData, setDistributionData] = useState<DistributionData[]>([])
     const [isLoadingDist, setIsLoadingDist] = useState(false)
 
+    const requestCount = useRef(0)
+
     // Formatear Markdown básico
     const formatMarkdown = (text: string): string => {
         return text
@@ -61,16 +63,10 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
 
         try {
             const res = await fetch(`${API_BASE_URL}/api/calendar/events?user_id=${userId}`)
-            
-            if (!res.ok) {
-                // Si falla, no rompemos todo, solo logueamos
-                console.error("Error obteniendo eventos para estadísticas")
-                return 
-            }
+            if (!res.ok) return 
             
             const data: CalendarEvent[] = await res.json()
 
-            // lógica de cálculo 
             const now = new Date()
             now.setHours(0, 0, 0, 0)
             const endDate = new Date(now)
@@ -107,6 +103,7 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
 
     const fetchDistribution = async () => {
         if (!userId) return
+        // Si ya hay datos, no los pedimos de nuevo a menos que se fuerce la limpieza
         if (distributionData.length > 0) return 
 
         setIsLoadingDist(true)
@@ -130,25 +127,17 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
         if (!userId) return
 
         setIsLoading(true)
-        setRecommendation('Generando resumen personalizado...')
-        
         try {
-            // PETICIÓN RECOMENDACIONES
             const response = await fetch(`${API_BASE_URL}/api/recommendations?user_id=${userId}`)
-            
             if (!response.ok) throw new Error("Error obteniendo recomendaciones")
-            
             const data = await response.json()
             setRecommendation(data.recommendation || 'Sin recomendación.')
-
         } catch (error) {
             setRecommendation('No se pudo obtener el resumen.')
         } finally {
             setIsLoading(false)
         }
     }
-
-    const requestCount = useRef(0)
 
     useEffect(() => {
         if (userId) {
@@ -159,21 +148,27 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
             setStats({ occupiedPercent: 0, freePercent: 100, freeSlots: 0 })
         }
 
-        const handleUpdate = () => {
+        // --- CAMBIO NUEVO: ESCUCHA DE ACTUALIZACIÓN DEL CALENDARIO ---
+        const handleCalendarUpdate = () => {
             if (userId) {
+                console.log('[StatsInterface] Recibido evento calendarUpdated, refrescando...');
                 calculateStats()
-                // Limpiamos datos avanzados al actualizar calendario para obligar a recargar
+                // Limpiamos los datos de distribución para que se recalculen la próxima vez que se abra el modal
                 setDistributionData([]) 
+                
                 requestCount.current += 1
-                // Refrescamos recomendación cada 5 cambios para no saturar a la IA
+                // Refrescamos recomendación cada 5 cambios para ahorrar tokens de Gemini
                 if (requestCount.current % 5 === 0) {
                     fetchRecommendation()
                 }
             }
         }
 
-        window.addEventListener('calendarUpdated', handleUpdate)
-        return () => window.removeEventListener('calendarUpdated', handleUpdate)
+        window.addEventListener('calendarUpdated', handleCalendarUpdate)
+
+        return () => {
+            window.removeEventListener('calendarUpdated', handleCalendarUpdate)
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId])
 
@@ -250,7 +245,6 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
                 `}
             </style>
 
-            {/* 👇 NUEVO: BOTÓN (+) FLOTANTE EN LA ESQUINA */}
             <button 
                 onClick={handleOpenModal}
                 title="Ver desglose detallado"
@@ -310,4 +304,4 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
     )
 }
 
-export default StatsInterface
+export default StatsInterface;
