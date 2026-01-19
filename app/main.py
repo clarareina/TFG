@@ -8,6 +8,7 @@ from app.auth import get_calendar_service, startup_check_all_sessions
 from app.database import init_db
 from app.flow import run_agent
 from zoneinfo import ZoneInfo
+import json
 
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -39,17 +40,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# # 3. LOGS 
-# def registrar_log(user: str, pregunta: str, respuesta: str):
-#     """Guarda lo que pasa en un archivo de texto para que puedas revisarlo luego."""
-#     log_data = {
-#         "timestamp": datetime.now().isoformat(),
-#         "user_id": user,
-#         "input": pregunta,
-#         "output": str(respuesta)
-#     }
-#     with open("logs.json", "a", encoding="utf-8") as archivo:
-#         archivo.write(json.dumps(log_data, ensure_ascii=False) + "\n")
+# 3. LOGS 
+def registrar_log(user: str, pregunta: str, respuesta: str):
+    """Guarda lo que pasa en un archivo de texto para que puedas revisarlo luego."""
+    log_data = {
+        "timestamp": datetime.now().isoformat(),
+        "user_id": user,
+        "input": pregunta,
+        "output": str(respuesta)
+    }
+    with open("logs.json", "a", encoding="utf-8") as archivo:
+        archivo.write(json.dumps(log_data, ensure_ascii=False) + "\n")
 
 # 4. MODELOS DE DATOS (Esquemas)
 class UserRequest(BaseModel):
@@ -152,7 +153,7 @@ async def chat_endpoint(request: UserRequest):
             )
         
         # Guarda la conversación en un archivo
-        # registrar_log(request.user_id, request.query, agent_result)
+        registrar_log(request.user_id, request.query, agent_result)
 
         # Limpia la respuesta para enviarla al frontend
         result = (
