@@ -9,6 +9,8 @@ from app.database import init_db
 from app.flow import run_agent
 from zoneinfo import ZoneInfo
 from app.database import SessionLocal, User
+from app.stats import calculate_time_analytics
+from app.calendar_tools import get_events_for_analytics 
 import json
 
 from fastapi.staticfiles import StaticFiles
@@ -286,6 +288,23 @@ async def get_recommendations(user_id: str = Query(..., description="Email del u
     
 
 
+
+@app.get("/api/stats/distribution")
+def get_stats_distribution(user_id: str):
+    if not user_id:
+        return []
+    raw_events = get_events_for_analytics(user_id)
+    if not raw_events:
+        return []
+    chart_data = calculate_time_analytics(raw_events)
+    
+    return chart_data
+
+
+
+
+
+
 # 1. Definimos la ruta de los archivos estáticos (la carpeta dist)
 static_path = os.path.join(os.path.dirname(__file__), "../frontend/dist")
 
@@ -304,4 +323,5 @@ if os.path.exists(static_path):
         # Para cualquier otra cosa, devolvemos el archivo index.html (React)
         return FileResponse(f"{static_path}/index.html")
 else:
-    print("⚠️ No se encontró la carpeta frontend/dist. Ejecuta 'npm run build' primero.")
+    print("No se encontró la carpeta frontend/dist. Ejecuta 'npm run build' primero.")
+

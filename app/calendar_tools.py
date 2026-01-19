@@ -704,24 +704,31 @@ def find_free_slots(user_id: str, duration=None, datetime_min=None, datetime_max
 
 
 
-def get_events_json(user_id: str):
+
+
+
+def get_events_for_analytics(user_id: str):
     """
-    Obtiene TODOS los eventos (pasados y futuros) para el Frontend.
+    Obtiene los eventos CRUDOS (JSON) de los próximos días.
     """
     try:
         service = get_calendar_service(user_id)
-        past_date = (datetime.now(LOCAL_TZ) - timedelta(days=365)).isoformat()
+        
+        # 2. Calculamos fechas (Desde AHORA hasta FUTURO)
+        start = datetime.now(LOCAL_TZ).isoformat() 
+        end = (datetime.now(LOCAL_TZ) + timedelta(days=7)).isoformat()
         
         events_result = service.events().list(
-            calendarId='primary', 
-            
-            timeMin=past_date, # Pedimos desde hace 1 año
-            maxResults=2500,   
+            calendarId='primary',
+            timeMin=start,          
+            timeMax=end,   
+            maxResults=2500,
             singleEvents=True,
             orderBy='startTime'
         ).execute()
         
         return events_result.get('items', [])
+        
     except Exception as e:
-        print(f"Error obteniendo JSON: {e}")
+        print(f"Error obteniendo eventos para analytics: {e}")
         return []

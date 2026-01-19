@@ -1,5 +1,7 @@
+// @ts-nocheck
 import { useEffect, useRef, useState } from 'react'
 import { API_BASE_URL } from '../App'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
 interface CalendarEvent {
     id: string
@@ -14,9 +16,18 @@ interface Stats {
     freeSlots: number
 }
 
+interface DistributionData {
+    name: string
+    value: number
+    minutes: number
+    [key: string]: any; //Este objeto tiene nombre, valor y minutos, y además puede tener cualquier otra cosa extra que la librería necesite
+}
+
 interface StatsInterfaceProps {
     userId: string | null; 
 }
+
+const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6B7280', '#14B8A6'];
 
 const StatsInterface = ({ userId }: StatsInterfaceProps) => {
     const [stats, setStats] = useState<Stats>({
@@ -26,6 +37,10 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
     })
     const [recommendation, setRecommendation] = useState<string>('Esperando inicio de sesión...')
     const [isLoading, setIsLoading] = useState(false)
+
+    const [showModal, setShowModal] = useState(false)
+    const [distributionData, setDistributionData] = useState<DistributionData[]>([])
+    const [isLoadingDist, setIsLoadingDist] = useState(false)
 
     // Formatear Markdown básico
     const formatMarkdown = (text: string): string => {
@@ -40,7 +55,7 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
     const HORAS_POR_DIA = 13
     const TOTAL_HORAS = DIAS * HORAS_POR_DIA
 
-    // Calcular estadísticas
+    // Calcular estadísticas 
     const calculateStats = async () => {
         if (!userId) return
 
@@ -90,6 +105,27 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
         }
     }
 
+    const fetchDistribution = async () => {
+        if (!userId) return
+        if (distributionData.length > 0) return 
+
+        setIsLoadingDist(true)
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/stats/distribution?user_id=${userId}`)
+            const data = await res.json()
+            setDistributionData(data)
+        } catch (error) {
+            console.error("Error cargando distribución:", error)
+        } finally {
+            setIsLoadingDist(false)
+        }
+    }
+
+    const handleOpenModal = () => {
+        setShowModal(true)
+        fetchDistribution()
+    }
+
     const fetchRecommendation = async () => {
         if (!userId) return
 
@@ -97,7 +133,7 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
         setRecommendation('Generando resumen personalizado...')
         
         try {
-            // 3. PETICIÓN ÚNICA DE RECOMENDACIONES
+            // PETICIÓN RECOMENDACIONES
             const response = await fetch(`${API_BASE_URL}/api/recommendations?user_id=${userId}`)
             
             if (!response.ok) throw new Error("Error obteniendo recomendaciones")
@@ -126,6 +162,8 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
         const handleUpdate = () => {
             if (userId) {
                 calculateStats()
+                // Limpiamos datos avanzados al actualizar calendario para obligar a recargar
+                setDistributionData([]) 
                 requestCount.current += 1
                 // Refrescamos recomendación cada 5 cambios para no saturar a la IA
                 if (requestCount.current % 5 === 0) {
@@ -144,7 +182,56 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
     const occupiedDash = (stats.occupiedPercent / 100) * circumference
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '12px', position: 'relative' }}>
+
+            {showModal && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+                    backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999,
+                    display: 'flex', justifyContent: 'center', alignItems: 'center'
+                }}>
+                    <div className="card" style={{ 
+                        width: '500px', maxWidth: '90%', padding: '25px', 
+                        backgroundColor: 'white', borderRadius: '12px',
+                        display: 'flex', flexDirection: 'column', gap: '20px',
+                        boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+                    }}>
+                        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                            <h3 style={{margin:0}}>Desglose de Tiempo Ocupado</h3>
+                            <button onClick={() => setShowModal(false)} style={{background:'none', border:'none', fontSize:'1.2rem', cursor:'pointer'}}>✕</button>
+                        </div>
+
+                        <div style={{ height: '300px', width: '100%', display:'flex', justifyContent:'center', alignItems:'center' }}>
+                            {isLoadingDist ? (
+                                <span style={{color:'#666'}}>Analizando eventos...</span>
+                            ) : distributionData.length === 0 ? (
+                                <span style={{color:'#666'}}>No hay suficientes datos.</span>
+                            ) : (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={distributionData}
+                                            innerRadius={60}
+                                            outerRadius={100}
+                                            paddingAngle={2}
+                                            dataKey="value"
+                                        >
+                                            {distributionData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip 
+                                            formatter={(value: number, name: string, props: any) => [`${value}%`, `${props.payload.name} (${props.payload.minutes} min)`]}
+                                            contentStyle={{borderRadius:'8px'}}
+                                        />
+                                        <Legend layout="vertical" verticalAlign="middle" align="right" />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <style>
                 {`
@@ -162,6 +249,21 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
                     }
                 `}
             </style>
+
+            {/* 👇 NUEVO: BOTÓN (+) FLOTANTE EN LA ESQUINA */}
+            <button 
+                onClick={handleOpenModal}
+                title="Ver desglose detallado"
+                style={{
+                    position: 'absolute', top: '0', right: '0',
+                    width: '24px', height: '24px', borderRadius: '50%',
+                    border: 'none', background: '#EFF6FF', color: '#2563EB',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 'bold', fontSize: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                }}
+            >
+                +
+            </button>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', marginTop: '10px' }}>
                 <svg

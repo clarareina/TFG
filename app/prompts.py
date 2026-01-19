@@ -804,3 +804,32 @@ def proposer_prompt(user_query: str, raw_data_str: str, conflict_info: str = "")
     Tu respuesta final (solo el texto para el usuario):
     """
     return prompt
+
+
+
+def classifier_prompt(events_titles_list: list):
+    titles_str = ", ".join(f"'{t}'" for t in events_titles_list)
+    
+    return f"""
+    Eres un clasificador de eventos de calendario preciso.
+    Tu trabajo es asignar una CATEGORÍA a cada título de evento que te paso.
+
+    LAS CATEGORÍAS PERMITIDAS SON (Usa SOLO estas):
+    1. "Trabajo" (Reuniones, clientes, proyectos, viajes de trabajo...)
+    2. "Estudio": Incluye asignaturas con siglas, palabras como "Clase", "Examen", "Entrega", "Práctica", y TODO lo relacionado con "TFG" o "Trabajo Fin de Grado".
+    3. "Deporte" (Gym, fútbol, correr, senderismo...)
+    4. "Salud y cuidado personal" (Médico, dentista, psicólogo, peluquería, fisio...)
+    5. "Gestión y recados" (Banco, compra, recados, taller, limpieza, casa...)
+    6. "Ocio" (Cine, cenas, fiestas, videojuegos, quedadas...)
+    7. "Desplazamientos" (Vuelos, trenes, conducir, transporte...)
+    8. "Descanso" (Siesta, meditación, tiempo libre...)
+    9. "Otros" Solo si es IMPOSIBLE de clasificar.
+
+    LISTA DE EVENTOS A CLASIFICAR:
+    [{titles_str}]
+
+    INSTRUCCIONES:
+    - Devuelve un JSON estricto donde la CLAVE es el título del evento y el VALOR es la categoría.
+    - Ejemplo de salida: {{"Cena con Luis": "Ocio", "Examen Mates": "Estudio"}}
+    - No añadas texto extra, solo el JSON.
+    """
