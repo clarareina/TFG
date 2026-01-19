@@ -2,14 +2,13 @@ import { useEffect, useState } from 'react'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
+import { API_BASE_URL } from '../App'
 
-// Añadir userId a la interfaz
 interface CalendarViewProps {
   userId: string | null;
   onLoadingChange?: (isLoading: boolean) => void
 }
 
-// Recibir userId
 const CalendarView = ({ userId, onLoadingChange }: CalendarViewProps) => {
   const [events, setEvents] = useState([])
 
@@ -19,7 +18,7 @@ const CalendarView = ({ userId, onLoadingChange }: CalendarViewProps) => {
     '9': '#3F51B5', '10': '#0B8043', '11': '#D50000',
   }
 
-  const fetchEvents = () => {
+  const fetchEvents = async () => {
     // Si no hay userId eliminar eventos y parar
     if (!userId) {
       setEvents([])
@@ -28,31 +27,37 @@ const CalendarView = ({ userId, onLoadingChange }: CalendarViewProps) => {
 
     onLoadingChange?.(true)
 
-    // Añadir user_id a la URL
-    fetch(`http://localhost:8000/api/calendar/events?user_id=${userId}`)
-      .then(res => res.json())
-      .then(data => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const formattedEvents = data.map((evt: any) => {
-          const colorId = evt.colorId
-          const defaultColor = '#036ce5ff'
-          const bgColor = colorId ? (googleColors[colorId] || defaultColor) : defaultColor
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/calendar/events?user_id=${userId}`)
+      
+      if (!res.ok) throw new Error("Error al obtener eventos")
+      
+      const data = await res.json()
 
-          return {
-            title: evt.summary || 'Evento',
-            start: evt.start.dateTime || evt.start.date,
-            end: evt.end.dateTime || evt.end.date,
-            backgroundColor: bgColor,
-            borderColor: 'transparent',
-            textColor: 'white'
-          }
-        })
-        setEvents(formattedEvents)
+      // 3. FORMATEAR DATOS
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const formattedEvents = data.map((evt: any) => {
+        const colorId = evt.colorId
+        const defaultColor = '#036ce5ff'
+        const bgColor = colorId ? (googleColors[colorId] || defaultColor) : defaultColor
+
+        return {
+          title: evt.summary || 'Evento',
+          start: evt.start.dateTime || evt.start.date,
+          end: evt.end.dateTime || evt.end.date,
+          backgroundColor: bgColor,
+          borderColor: 'transparent',
+          textColor: 'white'
+        }
       })
-      .catch(() => { setEvents([]) })
-      .finally(() => {
-        onLoadingChange?.(false)
-      })
+      setEvents(formattedEvents)
+
+    } catch (error) {
+      console.error("Error cargando calendario:", error)
+      setEvents([])
+    } finally {
+      onLoadingChange?.(false)
+    }
   }
 
   useEffect(() => {
@@ -67,7 +72,6 @@ const CalendarView = ({ userId, onLoadingChange }: CalendarViewProps) => {
     return () => {
       window.removeEventListener('calendarUpdated', handleUpdate)
     }
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
 

@@ -1,5 +1,5 @@
 # from app.services.calendar_service import get_calendar_service(user_id)
-from .auth import get_calendar_service
+from app.auth import get_calendar_service
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from app.state import UndoableAction

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { API_BASE_URL } from '../App'
 
 interface EventsProps {
     userId: string | null;
@@ -14,7 +15,7 @@ interface CalendarEvent {
 
 const UpcomingEvents = ({ userId }: EventsProps) => {
     const [events, setEvents] = useState<CalendarEvent[]>([])
-    const [isLoading, setIsLoading] = useState(false) // Empezamos en false hasta tener usuario
+    const [isLoading, setIsLoading] = useState(false)
 
     // Mapa de colores de Google Calendar
     const googleColors: { [key: string]: string } = {
@@ -23,46 +24,53 @@ const UpcomingEvents = ({ userId }: EventsProps) => {
         '9': '#3F51B5', '10': '#0B8043', '11': '#D50000',
     }
 
-    const fetchEvents = () => {
+    const fetchEvents = async () => {
         if (!userId) {
             setEvents([])
             return
         }
 
         setIsLoading(true)
-        fetch(`http://localhost:8000/api/calendar/events?user_id=${userId}`)
-            .then(res => res.json())
-            .then((data: CalendarEvent[]) => {
-                const now = new Date()
-                now.setHours(0, 0, 0, 0) // Inicio de hoy
 
-                const endDate = new Date(now)
-                endDate.setDate(now.getDate() + 7) // 7 días desde hoy
-                endDate.setHours(23, 59, 59, 999)
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/calendar/events?user_id=${userId}`)
+            
+            if (!res.ok) throw new Error("Error al cargar eventos")
+            
+            const data: CalendarEvent[] = await res.json()
 
-                // Filtrar eventos de los próximos 7 días (incluyendo hoy)
-                const upcomingEvents = data.filter(evt => {
-                    const eventStart = new Date(evt.start.dateTime || evt.start.date || '')
-                    return eventStart >= now && eventStart <= endDate
-                })
+            // PROCESAMIENTO DE DATOS (Igual que antes)
+            const now = new Date()
+            now.setHours(0, 0, 0, 0)
 
-                // Ordenar por fecha
-                upcomingEvents.sort((a, b) => {
-                    const dateA = new Date(a.start.dateTime || a.start.date || '')
-                    const dateB = new Date(b.start.dateTime || b.start.date || '')
-                    return dateA.getTime() - dateB.getTime()
-                })
+            const endDate = new Date(now)
+            endDate.setDate(now.getDate() + 7)
+            endDate.setHours(23, 59, 59, 999)
 
-                setEvents(upcomingEvents)
+            const upcomingEvents = data.filter(evt => {
+                const eventStart = new Date(evt.start.dateTime || evt.start.date || '')
+                return eventStart >= now && eventStart <= endDate
             })
-            .catch(() => { setEvents([]) })
-            .finally(() => setIsLoading(false))
+
+            upcomingEvents.sort((a, b) => {
+                const dateA = new Date(a.start.dateTime || a.start.date || '')
+                const dateB = new Date(b.start.dateTime || b.start.date || '')
+                return dateA.getTime() - dateB.getTime()
+            })
+
+            setEvents(upcomingEvents)
+
+        } catch (error) {
+            console.error("Error cargando eventos:", error)
+            setEvents([])
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     useEffect(() => {
         fetchEvents()
 
-        // Escuchar cuando el chat hace cambios en el calendario
         const handleCalendarUpdate = () => {
             console.log('[UpcomingEvents] Actualizando eventos...')
             fetchEvents()
@@ -73,7 +81,7 @@ const UpcomingEvents = ({ userId }: EventsProps) => {
         return () => {
             window.removeEventListener('calendarUpdated', handleCalendarUpdate)
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId])
 
     const formatDate = (evt: CalendarEvent) => {
@@ -92,7 +100,6 @@ const UpcomingEvents = ({ userId }: EventsProps) => {
         return colorId ? (googleColors[colorId] || '#039BE5') : '#039BE5'
     }
 
-    // Renderizado condicional según el estado del usuario
     if (!userId) {
         return (
             <div style={{ padding: '20px', textAlign: 'center', color: '#9CA3AF', fontSize: '0.9rem' }}>

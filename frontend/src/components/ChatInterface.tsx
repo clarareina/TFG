@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { KeyboardEvent } from 'react'
+import { API_BASE_URL } from '../App'
 
-// Definimos que este componente recibe userId
 interface ChatProps {
   userId: string | null;
 }
@@ -12,10 +12,9 @@ interface Message {
   sender: 'user' | 'bot'
 }
 
-// Recibimos userId aquí
 const ChatInterface = ({ userId }: ChatProps) => {
   const [input, setInput] = useState('')
-  const [isLoading, setIsLoading] = useState(false) // Para saber si está "pensando"
+  const [isLoading, setIsLoading] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
     { id: 1, text: 'Hola. ¿En qué puedo ayudarte?', sender: 'bot' }
   ])
@@ -26,54 +25,42 @@ const ChatInterface = ({ userId }: ChatProps) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
-  // Función para formatear Markdown básico a HTML
+  // Formateador simple de negritas y saltos de línea
   const formatMarkdown = (text: string): string => {
     return text
-      // Convertir **texto** a negrita
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      // Convertir *texto* a cursiva
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      // Convertir saltos de línea a <br>
-      .replace(/\n/g, '<br>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') // Negrita
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')             // Cursiva
+      .replace(/\n/g, '<br>')                            // Saltos de línea
   }
 
   useEffect(scrollToBottom, [messages])
 
   const handleSend = async () => {
-    // Si no hay texto O no hay usuario, no hacemos nada
     if (!input.trim() || !userId) return
 
-    // Guardamos el texto y limpiamos el input
+    // 1. Guardamos y mostramos el mensaje del usuario
     const userText = input
     setInput('')
-
-    // Pintamos mensaje 
+    
     const userMsg: Message = { id: Date.now(), text: userText, sender: 'user' }
     setMessages(prev => [...prev, userMsg])
-
-    // Modo "cargando"
     setIsLoading(true)
 
     try {
-      // 4. LLAMADA AL BACKEND 
-      const response = await fetch('http://127.0.0.1:8000/api/chat', {
+      const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: userText,
-          user_id: userId 
-        }),
+          user_id: userId
+        })
       })
 
-      if (!response.ok) {
-        throw new Error('Error en la conexión con el servidor')
-      }
-
+      if (!response.ok) throw new Error('Error en el servidor')
+      
       const data = await response.json()
 
-      // 5. Pintamos la respuesta del ASISTENTE
+      // 3. Mostrar respuesta del Bot
       const botMsg: Message = {
         id: Date.now() + 1,
         text: data.response,
@@ -81,8 +68,7 @@ const ChatInterface = ({ userId }: ChatProps) => {
       }
       setMessages(prev => [...prev, botMsg])
 
-      // 6. Notificar a otros componentes que se actualizó el calendario
-      // Usar setTimeout para asegurar que el estado del backend esté actualizado
+      // 4. Actualizar el calendario si el bot hizo cambios
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('calendarUpdated', { bubbles: true }))
       }, 100)
@@ -91,7 +77,7 @@ const ChatInterface = ({ userId }: ChatProps) => {
       console.error(error)
       const errorMsg: Message = {
         id: Date.now() + 1,
-        text: 'Error: No puedo conectar con el servidor (Backend apagado o error de red).',
+        text: 'Error: No puedo conectar con el servidor.',
         sender: 'bot'
       }
       setMessages(prev => [...prev, errorMsg])
@@ -121,10 +107,10 @@ const ChatInterface = ({ userId }: ChatProps) => {
             )}
           </div>
         ))}
-        {/* Indicador de "Escribiendo..." */}
+        
         {isLoading && (
           <div className="message-bubble bot" style={{ opacity: 0.7 }}>
-            Thinking...
+            Pensando...
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -138,7 +124,7 @@ const ChatInterface = ({ userId }: ChatProps) => {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={isLoading || !userId} // [CAMBIO] Bloqueamos si carga O si no hay usuario
+          disabled={isLoading || !userId}
         />
         <button onClick={handleSend} disabled={isLoading || !userId}>
           ➤

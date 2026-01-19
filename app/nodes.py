@@ -1,13 +1,13 @@
 import json
 import re
 from typing import Literal
-from .prompts import tool_prompt, reasoning_prompt, analysis_prompt, proposer_prompt
-from .services.gemini_client import generar_respuesta
+from app.prompts import tool_prompt, reasoning_prompt, analysis_prompt, proposer_prompt
+from app.services.gemini_client import generar_respuesta
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import StateGraph
 from langgraph.types import interrupt
 from app import calendar_tools
-from .state import AgentState, VerificationResult
+from app.state import AgentState, VerificationResult
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo 
 import sqlite3, atexit

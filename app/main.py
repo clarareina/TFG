@@ -1,14 +1,17 @@
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
-import json
 from datetime import datetime, timezone, timedelta
 from contextlib import asynccontextmanager
-from .auth import get_calendar_service, startup_check_all_sessions
-from .database import init_db
-from .flow import run_agent
+from app.auth import get_calendar_service, startup_check_all_sessions
+from app.database import init_db
+from app.flow import run_agent
 from zoneinfo import ZoneInfo
+
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
 
 LOCAL_TZ = ZoneInfo("Europe/Madrid")
 
@@ -36,17 +39,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 3. LOGS 
-def registrar_log(user: str, pregunta: str, respuesta: str):
-    """Guarda lo que pasa en un archivo de texto para que puedas revisarlo luego."""
-    log_data = {
-        "timestamp": datetime.now().isoformat(),
-        "user_id": user,
-        "input": pregunta,
-        "output": str(respuesta)
-    }
-    with open("logs.json", "a", encoding="utf-8") as archivo:
-        archivo.write(json.dumps(log_data, ensure_ascii=False) + "\n")
+# # 3. LOGS 
+# def registrar_log(user: str, pregunta: str, respuesta: str):
+#     """Guarda lo que pasa en un archivo de texto para que puedas revisarlo luego."""
+#     log_data = {
+#         "timestamp": datetime.now().isoformat(),
+#         "user_id": user,
+#         "input": pregunta,
+#         "output": str(respuesta)
+#     }
+#     with open("logs.json", "a", encoding="utf-8") as archivo:
+#         archivo.write(json.dumps(log_data, ensure_ascii=False) + "\n")
 
 # 4. MODELOS DE DATOS (Esquemas)
 class UserRequest(BaseModel):
@@ -60,10 +63,10 @@ class AgentResponse(BaseModel):
 
 
 # 5. ENDPOINTS 
-@app.get("/")
-def check():
-    """Para saber si el servidor está encendido."""
-    return {"status": "online", "system": "Agent Backend v2"}
+# @app.get("/")
+# def check():
+#     """Para saber si el servidor está encendido."""
+#     return {"status": "online", "system": "Agent Backend v2"}
 
 @app.get("/api/auth/url")
 def get_login_url(redirect_uri: str = Query(..., description="URL donde volverá Google"), login_hint: str = Query(None, description="Email sugerido")):
@@ -149,7 +152,7 @@ async def chat_endpoint(request: UserRequest):
             )
         
         # Guarda la conversación en un archivo
-        registrar_log(request.user_id, request.query, agent_result)
+        # registrar_log(request.user_id, request.query, agent_result)
 
         # Limpia la respuesta para enviarla al frontend
         result = (
@@ -244,3 +247,25 @@ async def get_recommendations(user_id: str = Query(..., description="Email del u
         
     except Exception as e:
         return {"recommendation": "No pude generar recomendaciones."}
+    
+
+
+# 1. Definimos la ruta de los archivos estáticos (la carpeta dist)
+static_path = os.path.join(os.path.dirname(__file__), "../frontend/dist")
+
+# 2. Verificamos si existe la carpeta (para que no falle en local si no has hecho build)
+if os.path.exists(static_path):
+    # Montamos la carpeta para que cargue CSS y JS
+    app.mount("/assets", StaticFiles(directory=f"{static_path}/assets"), name="assets")
+
+    # 3. Ruta RAÍZ: Cuando entras a la web, devuelve el index.html
+    @app.get("/{full_path:path}")
+    async def serve_react_app(full_path: str):
+        # Si piden algo de la API, no interferimos (ya lo manejan los endpoints de arriba)
+        if full_path.startswith("api"):
+            raise HTTPException(status_code=404, detail="Not Found")
+
+        # Para cualquier otra cosa, devolvemos el archivo index.html (React)
+        return FileResponse(f"{static_path}/index.html")
+else:
+    print("⚠️ No se encontró la carpeta frontend/dist. Ejecuta 'npm run build' primero.")

@@ -1,7 +1,8 @@
 from sqlalchemy import create_engine, Column, Integer, String, Text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = "sqlite:///./agent.db"
+# DATABASE_URL = "sqlite:///./agent.db"
+DATABASE_URL = "sqlite:////tmp/agent.db"
 
 # check_same_thread: False es necesario para evitar errores si hay varias peticiones web simultáneas.
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { API_BASE_URL } from '../App'
 
 interface CalendarEvent {
     id: string
@@ -24,14 +25,14 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
         freeSlots: 0
     })
     const [recommendation, setRecommendation] = useState<string>('Esperando inicio de sesión...')
-    const [isLoading, setIsLoading] = useState(false) // Empezamos en false hasta que haya usuario
+    const [isLoading, setIsLoading] = useState(false)
 
-    // Función para formatear Markdown básico a HTML
+    // Formatear Markdown básico
     const formatMarkdown = (text: string): string => {
         return text
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*(.+?)\*/g, '<span>$1</span>') // 
-            .replace(/^- /gm, '• ') // Mejora visual para listas
+            .replace(/\*(.+?)\*/g, '<span>$1</span>') 
+            .replace(/^- /gm, '• ')
             .replace(/\n/g, '<br>')
     }
 
@@ -40,44 +41,53 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
     const TOTAL_HORAS = DIAS * HORAS_POR_DIA
 
     // Calcular estadísticas
-    const calculateStats = () => {
-        // Si no hay usuario, no pedimos nada para evitar error 422
+    const calculateStats = async () => {
         if (!userId) return
 
-        // Pasamos el userId en la URL
-        fetch(`http://localhost:8000/api/calendar/events?user_id=${userId}`)
-            .then(res => res.json())
-            .then((data: CalendarEvent[]) => {
-                const now = new Date()
-                now.setHours(0, 0, 0, 0)
-                const endDate = new Date(now)
-                endDate.setDate(now.getDate() + DIAS)
-                endDate.setHours(23, 59, 59, 999)
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/calendar/events?user_id=${userId}`)
+            
+            if (!res.ok) {
+                // Si falla, no rompemos todo, solo logueamos
+                console.error("Error obteniendo eventos para estadísticas")
+                return 
+            }
+            
+            const data: CalendarEvent[] = await res.json()
 
-                const upcomingEvents = data.filter(evt => {
-                    if (!evt.start.dateTime) return false
-                    const eventStart = new Date(evt.start.dateTime)
-                    return eventStart >= now && eventStart <= endDate
-                })
+            // lógica de cálculo 
+            const now = new Date()
+            now.setHours(0, 0, 0, 0)
+            const endDate = new Date(now)
+            endDate.setDate(now.getDate() + DIAS)
+            endDate.setHours(23, 59, 59, 999)
 
-                let occupiedMinutes = 0
-                upcomingEvents.forEach(evt => {
-                    if (evt.start.dateTime && evt.end.dateTime) {
-                        const start = new Date(evt.start.dateTime)
-                        const end = new Date(evt.end.dateTime)
-                        occupiedMinutes += (end.getTime() - start.getTime()) / (1000 * 60)
-                    }
-                })
-
-                const occupiedHours = Math.round(occupiedMinutes / 60 * 10) / 10
-                const freeHours = Math.max(0, TOTAL_HORAS - occupiedHours)
-                const occupiedPercent = Math.min(100, Math.round((occupiedHours / TOTAL_HORAS) * 100))
-                const freePercent = Math.max(0, 100 - occupiedPercent)
-                const freeSlots = Math.floor(freeHours)
-
-                setStats({ occupiedPercent, freePercent, freeSlots })
+            const upcomingEvents = data.filter(evt => {
+                if (!evt.start.dateTime) return false
+                const eventStart = new Date(evt.start.dateTime)
+                return eventStart >= now && eventStart <= endDate
             })
-            .catch(() => { })
+
+            let occupiedMinutes = 0
+            upcomingEvents.forEach(evt => {
+                if (evt.start.dateTime && evt.end.dateTime) {
+                    const start = new Date(evt.start.dateTime)
+                    const end = new Date(evt.end.dateTime)
+                    occupiedMinutes += (end.getTime() - start.getTime()) / (1000 * 60)
+                }
+            })
+
+            const occupiedHours = Math.round(occupiedMinutes / 60 * 10) / 10
+            const freeHours = Math.max(0, TOTAL_HORAS - occupiedHours)
+            const occupiedPercent = Math.min(100, Math.round((occupiedHours / TOTAL_HORAS) * 100))
+            const freePercent = Math.max(0, 100 - occupiedPercent)
+            const freeSlots = Math.floor(freeHours)
+
+            setStats({ occupiedPercent, freePercent, freeSlots })
+
+        } catch (error) {
+            console.error("Error calculando estadísticas:", error)
+        }
     }
 
     const fetchRecommendation = async () => {
@@ -85,18 +95,18 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
 
         setIsLoading(true)
         setRecommendation('Generando resumen personalizado...')
+        
         try {
-            // Usar endpoint separado para recomendaciones (no usa el grafo del agente)
-            const response = await fetch(`http://127.0.0.1:8000/api/recommendations?user_id=${userId}`)
+            // 3. PETICIÓN ÚNICA DE RECOMENDACIONES
+            const response = await fetch(`${API_BASE_URL}/api/recommendations?user_id=${userId}`)
+            
+            if (!response.ok) throw new Error("Error obteniendo recomendaciones")
+            
+            const data = await response.json()
+            setRecommendation(data.recommendation || 'Sin recomendación.')
 
-            if (response.ok) {
-                const data = await response.json()
-                setRecommendation(data.recommendation || 'Sin recomendación.')
-            } else {
-                setRecommendation('No se pudo obtener el resumen.')
-            }
-        } catch {
-            setRecommendation('Error al conectar con el agente.')
+        } catch (error) {
+            setRecommendation('No se pudo obtener el resumen.')
         } finally {
             setIsLoading(false)
         }
@@ -117,6 +127,7 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
             if (userId) {
                 calculateStats()
                 requestCount.current += 1
+                // Refrescamos recomendación cada 5 cambios para no saturar a la IA
                 if (requestCount.current % 5 === 0) {
                     fetchRecommendation()
                 }
@@ -188,7 +199,7 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
                 borderRadius: '8px', overflow: 'auto', maxHeight: '120px'
             }}>
                 {isLoading ? (
-                    <span style={{ color: '#9CA3AF' }}>Analizando tu agenda...</span> // CAMBIO: Quitamos estilo itálico
+                    <span style={{ color: '#9CA3AF' }}>Analizando tu agenda...</span> 
                 ) : (
                     <span dangerouslySetInnerHTML={{ __html: formatMarkdown(recommendation) }} />
                 )}

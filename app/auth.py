@@ -1,55 +1,79 @@
 import json
+import os  
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow 
 from google.auth.transport.requests import Request
 from google.auth.exceptions import RefreshError
 from googleapiclient.discovery import build
-from .database import SessionLocal, User, init_db
+from app.database import SessionLocal, User, init_db
 
 # Configuración
-CREDENTIALS_FILE = "credentials.json" # 💡 Archivo descargado de Google Cloud Console con Client ID y Secret.
+CREDENTIALS_FILE = "credentials.json" 
+ENV_CREDENTIALS_VAR = "GOOGLE_CREDENTIALS_JSON" # Nombre de la variable en Cloud Run
 
 SCOPES = [
-    'https://www.googleapis.com/auth/calendar',       # Permiso para leer/escribir calendario
-    'https://www.googleapis.com/auth/userinfo.email', # Para saber quién es el usuario
+    'https://www.googleapis.com/auth/calendar',       
+    'https://www.googleapis.com/auth/userinfo.email', 
     'https://www.googleapis.com/auth/userinfo.profile',
     'openid'
 ]
 
+def get_flow(redirect_uri: str):
+    """
+    Función auxiliar que decide de dónde sacar las credenciales:
+    1. Si existe la variable de entorno (Cloud Run), usa eso.
+    2. Si no, busca el archivo local (Localhost).
+    """
+    
+    # 1. INTENTO NUBE: Leer de variable de entorno
+    env_creds = os.environ.get(ENV_CREDENTIALS_VAR)
+    if env_creds:
+        try:
+            client_config = json.loads(env_creds)
+            # from_client_config lee un diccionario, no un archivo
+            return Flow.from_client_config(
+                client_config,
+                scopes=SCOPES,
+                redirect_uri=redirect_uri
+            )
+        except json.JSONDecodeError as e:
+            print(f"Error al leer el JSON de la variable de entorno: {e}")
+            raise
+
+    # 2. INTENTO LOCAL: Leer de archivo
+    if os.path.exists(CREDENTIALS_FILE):
+        return Flow.from_client_secrets_file(
+            CREDENTIALS_FILE,
+            scopes=SCOPES,
+            redirect_uri=redirect_uri
+        )
+
+    # 3. Si todo falla
+    raise ValueError("No se encontraron credenciales. Configura GOOGLE_CREDENTIALS_JSON o pon el archivo credentials.json")
+
+
 def get_auth_url(redirect_uri: str, login_hint: str = None):
     """Genera la URL para que el usuario se loguee en Google."""
     
-    # Inicializa el flujo OAuth 
-    flow = Flow.from_client_secrets_file(
-        CREDENTIALS_FILE,
-        scopes=SCOPES,
-        redirect_uri=redirect_uri # Debe coincidir exactamente con lo configurado en Google Cloud.
-    )
+    # Usamos nuestra nueva función auxiliar
+    flow = get_flow(redirect_uri)
     
-    # Fuerza a Google a preguntar permisos siempre, para que devuelva refresh_token (necesario para mantener la sesión viva sin pedir login diario).
     kwargs = {'prompt': 'consent'}
-    
     if login_hint:
-        kwargs['login_hint'] = login_hint # Pre-rellena el email si ya lo sabemos.
+        kwargs['login_hint'] = login_hint 
         
-    # Genera la URL larga de Google donde el usuario hace clic.
     auth_url, _ = flow.authorization_url(**kwargs)
     return auth_url
 
 def exchange_code(code: str, redirect_uri: str):
     """Canjea el código devuelto por Google por credenciales y guarda el usuario."""
     
-    flow = Flow.from_client_secrets_file(
-        CREDENTIALS_FILE,
-        scopes=SCOPES,
-        redirect_uri=redirect_uri
-    )
+    # Usamos nuestra nueva función auxiliar
+    flow = get_flow(redirect_uri)
     
-    # Canjea el código temporal (URL) por los tokens reales (access y refresh).
     flow.fetch_token(code=code)
-    creds = flow.credentials # Llaves de acceso.
+    creds = flow.credentials 
 
-    # OAuth solo da tokens, oauth2 para preguntar a Google el email del dueño del token.
     user_info_service = build('oauth2', 'v2', credentials=creds)
     user_info = user_info_service.userinfo().get().execute()
     user_email = user_info['email']
@@ -57,17 +81,14 @@ def exchange_code(code: str, redirect_uri: str):
     init_db()
     db = SessionLocal()
     
-    # Si el usuario ya existe en nuestra BD
     user = db.query(User).filter(User.email == user_email).first()
     
     creds_json = creds.to_json()
 
     if not user:
-        # Si es nuevo, lo creamos.
         user = User(email=user_email, google_token=creds_json)
         db.add(user)
     else:
-        # Si ya existe, actualizamos el token ya que caducan
         user.google_token = creds_json
     
     db.commit()
@@ -88,31 +109,23 @@ def get_calendar_service(user_email: str):
 
     if user and user.google_token:
         try:
-            # Reconstruimos Credentials de Google desde el json guardado en BD.
             token_data = json.loads(user.google_token)
             creds = Credentials.from_authorized_user_info(token_data, SCOPES)
         except Exception:
             creds = None
 
-    # validez del token
     if not creds or not creds.valid:
-        # si está caducado pero tenemos un refresh_token, intentamos renovarlo.
         if creds and creds.expired and creds.refresh_token:
             try:
-                # pide un nuevo access token a Google sin que el usuario haga nada.
                 creds.refresh(Request())
-                
-                # guardamos el token renovado en la BD para la próxima vez.
                 user.google_token = creds.to_json()
                 db.commit()
             except RefreshError:
-                # Si falla anulamos credenciales.
                 creds = None
         
     db.close()
 
     if not creds:
-        # Si no hay manera de obtener credenciales válidas, error para forzar nuevo login.
         raise ValueError(f"Usuario {user_email} no autenticado. Requiere login Web.")
 
     return build('calendar', 'v3', credentials=creds)
@@ -123,7 +136,7 @@ def startup_check_all_sessions():
     users = db.query(User).all()
 
     if not users:
-        print("⚠️  Base de datos vacía. Esperando primer login web.")
+        print("Base de datos vacía. Esperando primer login web.")
         db.close()
         return
 
@@ -133,14 +146,12 @@ def startup_check_all_sessions():
             data = json.loads(user.google_token)
             creds = Credentials.from_authorized_user_info(data, SCOPES)
             
-            # Si el token ya caducó, lo renovamos ahora al arrancar la app.
             if creds.expired and creds.refresh_token:
                 creds.refresh(Request())
                 user.google_token = creds.to_json()
                 db.commit()
                 
         except Exception:
-            # Si el token está corrupto, lo borramos para obligar a reloguear.
             user.google_token = None
             db.commit()
 

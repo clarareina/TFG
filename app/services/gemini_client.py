@@ -9,7 +9,7 @@ load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
 
 if not api_key:
-    raise ValueError("No se encontró GEMINI_API_KEY en el archivo .env")
+    raise ValueError("No se encontró GEMINI_API_KEY")
 
 # Configura la conexión con Gemini
 genai.configure(api_key=api_key)

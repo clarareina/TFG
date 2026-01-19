@@ -5,6 +5,15 @@ import CalendarView from './components/CalendarInterface'
 import UpcomingEvents from './components/EventsInterface'
 import StatsInterface from './components/StatsInterface'
 
+// 1. Miramos si en el navegador pone "localhost"
+const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+
+// 2. Elegimos la URL correcta automáticamente
+// exportamos esta variable para otros archivos
+export const API_BASE_URL = isLocal 
+  ? "http://localhost:8000" 
+  : "https://tgf-v1-11980723519.europe-southwest1.run.app";
+
 
 
 const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
@@ -16,25 +25,25 @@ const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
     setIsLoading(true)
 
     try {
-      // 1. Verificar si ya existe sesión
-      const res = await fetch(`http://localhost:8000/api/auth/login?user_id=${email}`)
+      const res = await fetch(`${API_BASE_URL}/api/auth/login?user_id=${email}`)
       const data = await res.json()
-
+      
       if (data.status === "success") {
-        // Ya tiene sesión válida
         localStorage.setItem("tfg_user_id", email)
         onLogin()
       } else {
-        // 2. No tiene sesión, iniciar OAuth
-        const redirectUri = window.location.origin // http://localhost:5173
-        const urlRes = await fetch(`http://localhost:8000/api/auth/url?redirect_uri=${redirectUri}&login_hint=${email}`)
+        // Si no tiene sesión, pedimos la URL de Google
+        // window.location.origin detecta automáticamente si es localhost:5173 o tu web en la nube
+        const redirectUri = window.location.origin 
+        
+        const urlRes = await fetch(`${API_BASE_URL}/api/auth/url?redirect_uri=${redirectUri}&login_hint=${email}`)
         const urlData = await urlRes.json()
 
-        // Redirigir a Google
         window.location.href = urlData.url
       }
     } catch (e) {
-      alert("Error conectando con el servidor")
+      console.error(e)
+      alert("Error conectando con el servidor.")
       setIsLoading(false)
     }
   }
@@ -45,9 +54,9 @@ const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
       backgroundColor: '#f3f4f6', flexDirection: 'column', gap: '20px'
     }}>
       <div className="card" style={{ width: '400px', alignItems: 'center', gap: '20px' }}>
-        <h2>TFG </h2>
+        <h2>TFG</h2>
         <p style={{ color: '#666', textAlign: 'center' }}>
-          Inicia sesión para gestionar tu calendario
+          Inicia sesión
         </p>
 
         <input
@@ -76,24 +85,27 @@ const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
 function App() {
   const [isCalendarLoading, setIsCalendarLoading] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
-  const [isProcessing, setIsProcessing] = useState(true) // Cargando inicial
+  const [isProcessing, setIsProcessing] = useState(true)
 
   useEffect(() => {
     const checkAuth = async () => {
-      // 1. Verificar si venimos de Google con un code
       const params = new URLSearchParams(window.location.search)
       const code = params.get("code")
 
       if (code) {
-        // Estamos volviendo de Google
         try {
-          const res = await fetch("http://localhost:8000/api/auth/callback", {
+          const body = JSON.stringify({
+            code,
+            redirect_uri: window.location.origin // Esto vale para local y nube
+          })
+          
+          const headers = { "Content-Type": "application/json" }
+          
+          // USAMOS LA URL AUTOMÁTICA
+          const res = await fetch(`${API_BASE_URL}/api/auth/callback`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              code,
-              redirect_uri: window.location.origin
-            })
+            headers,
+            body
           })
           const data = await res.json()
 
@@ -101,7 +113,6 @@ function App() {
             const user = data.user_id
             localStorage.setItem("tfg_user_id", user)
             setUserId(user)
-            // Limpiar URL
             window.history.replaceState({}, document.title, "/")
           } else {
             alert("Error login Google")
@@ -113,7 +124,6 @@ function App() {
         return
       }
 
-      // 2. Si no hay code, mirar si tenemos usuario guardado en LocalStorage
       const savedUser = localStorage.getItem("tfg_user_id")
       if (savedUser) {
         setUserId(savedUser)
@@ -140,38 +150,25 @@ function App() {
     }} />
   }
 
-  // PANTALLA PRINCIPAL (DASHBOARD)
   return (
     <div className="layout-dashboard">
 
-      {/* COLUMNA 1: CHAT */}
+      {/* CHAT */}
       <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', alignItems: 'center' }}>
           <h3 style={{ margin: 0 }}>Asistente</h3>
           <button onClick={handleLogout} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.8rem', color: '#ef4444' }}>Cerrar Sesión</button>
         </div>
-        {/* Pasamos el userId al Chat para que sepa quién habla */}
         <ChatInterface userId={userId} />
       </div>
 
-      {/* COLUMNA 2: CALENDARIO */}
+      {/* CALENDARIO */}
       <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column' }}>
-
-        {/* CABECERA: TÍTULO Y BOTÓN JUNTOS */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '15px'
-        }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <h3 style={{ margin: 0 }}>Calendario</h3>
-
-          {/* Texto de carga centrado */}
           {isCalendarLoading && (
-            <span style={{ color: '#9CA3AF', flex: 1, textAlign: 'center' }}>Cargando calendario...</span>
+            <span style={{ color: '#9CA3AF', flex: 1, textAlign: 'center' }}>Cargando...</span>
           )}
-
-          {/* Botón de Google Calendar */}
           <button
             onClick={() => window.open('https://calendar.google.com', '_blank')}
             style={{
@@ -184,9 +181,6 @@ function App() {
             📅 Google Calendar
           </button>
         </div>
-
-        {/* EL CALENDARIO */}
-        {/* Pasamos userId también al calendario */}
         <div style={{ flex: 1, minHeight: 0 }}>
           <CalendarView
             userId={userId}
@@ -195,25 +189,19 @@ function App() {
         </div>
       </div>
 
-      {/* COLUMNA 3: PRÓXIMOS EVENTOS + ESTADÍSTICAS */}
+      {/* EVENTOS Y ESTADÍSTICAS */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--separacion)', overflow: 'hidden' }}>
-
-        {/* PRÓXIMOS EVENTOS */}
         <div className="card" style={{ flex: 5, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ margin: '0 0 15px 0', flexShrink: 0 }}>Próximos Eventos</h3>
           <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-            {/* Pasamos userId a la lista de eventos */}
             <UpcomingEvents userId={userId} />
           </div>
         </div>
 
-        {/* ESTADÍSTICAS */}
         <div className="card" style={{ flex: 5, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ margin: '0 0 10px 0', flexShrink: 0 }}>Recomendaciones</h3>
-          {/* AQUI ESTÁ LA CLAVE: Conectamos Stats con el usuario */}
           <StatsInterface userId={userId} />
         </div>
-
       </div>
     </div>
   )
