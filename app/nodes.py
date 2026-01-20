@@ -37,6 +37,7 @@ FUNCTION_MAP = {
     "create_event": calendar_tools.create_event,
     "delete_event": calendar_tools.delete_event,
     "delete_date_events": calendar_tools.delete_date_events,
+    "delete_some_events": calendar_tools.delete_some_events,
     "duplicate_event": calendar_tools.duplicate_event,
     "patch_event": calendar_tools.patch_event,
     "get_events": calendar_tools.get_events,
@@ -69,7 +70,7 @@ def router_node(state: AgentState) -> dict:
         print(f"[Router] (Tool)")
         return {"routing_decision": "tool_use"}
     
-    if any(w in message for w in ["busca", "crees", "idea", "encuentra", "tardar", "hueco", "tengo", "resum", "dime", "estima"]):
+    if any(w in message for w in ["busca", "crees", "idea", "encuentra", "tardar", "hueco", "tengo", "resum", "dime", "cualquier", "estima"]):
         print(f"[Router] (Reasoning)")
         return {"routing_decision": "reasoning"}
     
@@ -92,10 +93,9 @@ def router_node(state: AgentState) -> dict:
         - Para temas que NO tienen nada que ver con el calendario (chistes, el tiempo, correos, política).
         - Peticiones que parezcan peligrosas u ofensivas.
     
-   
+    Orden de prioridad: reasoning > chat > tool_use
     Petición: "{raw_msg}" # Usamos el mensaje original con mayúsculas para el LLM
-    
-    Responde SOLO: tool_use, reasoning o chat.
+    Responde SOLO: tool_use, reasoning o chat
     """
     
     response_obj = generar_respuesta(classification_prompt)

@@ -10,7 +10,7 @@ def tool_prompt():
   Eres un traductor de lenguaje natural a funciones Python de un agente de calendario.
   Formato de salida:
   {
-    "function": "<create_event | delete_event | delete_date_events| duplicate_event | patch_event | get_events>",
+    "function": "<create_event | delete_event | delete_date_events | delete_some_events | duplicate_event | patch_event | get_events>",
     "parameters": { ... }
   }
   Si hay varias instrucciones (1., 2., 3., …), devuelve un ARRAY JSON con un objeto por instrucción, en el mismo orden.
@@ -51,6 +51,12 @@ def tool_prompt():
   Parámetros OBLIGATORIOS: start_date, end_date (ambos son requeridos, NUNCA omitir).
   Si el usuario dice "borra todo" sin fechas, usa la fecha de hoy como start_date y end_date.
   Si dice "borra los de la semana", calcula start_date (lunes) y end_date (domingo) de esa semana.
+
+  8) delete_some_events
+  Elimina TODOS los eventos que coincidan con un criterio de nombre (summary) y opcionalmente un rango de fechas.
+  Parámetros: summary (OBLIGATORIO), start_date (opcional), end_date (opcional).
+  Usa esta función cuando el usuario quiera eliminar varios eventos de un mismo tipo o con un nombre común.
+  Por ejemplo: "elimina todos los eventos de médico" o "elimina todos los de estudio de esta semana".
   ────────────────────────────────────────
   Reglas de interpretación (OBLIGATORIAS)
 
@@ -367,6 +373,43 @@ def tool_prompt():
         start_date: "2025-09-01",
         end_date: "2025-09-30"
      }
+  }
+  ]
+
+  Usuario: "Elimina todos los eventos de médico"
+  Respuesta:
+  [
+  {
+     "function": "delete_some_events",
+     "parameters": {
+        "summary": "médico"
+     }
+  }
+  ]
+
+  Usuario: "Borra todos los de estudio de esta semana"
+  Respuesta:
+  [
+  {
+     "function": "delete_some_events",
+     "parameters": {
+        "summary": "estudio",
+        "start_date": "2025-10-03",
+        "end_date": "2025-10-10"
+     }
+  }
+  ]
+
+  Usuario: "Quita todas las reuniones del mes pasado"
+  Respuesta:
+  [
+  {
+     "function": "delete_some_events",
+     "parameters": {
+        "summary": "reunión",
+        "start_date": "2025-09-01",
+        "end_date": "2025-09-30"
+     }
   }
   ]
 
