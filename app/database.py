@@ -17,6 +17,7 @@ class User(Base):
     email = Column(String, unique=True, index=True) # El email no se puede repetir
     google_token = Column(Text) 
     preferences = Column(String, default="")
+    conversation_history = Column(Text, default="")  # Historial de conversación reciente (JSON)
 
 def init_db():
     """Crea las tablas en el archivo si no existen."""

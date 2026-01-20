@@ -798,8 +798,10 @@ def proposer_prompt(user_query: str, raw_data_str: str, conflict_info: str = "")
         
     3.**Formatear:** Convierte las fechas ISO a lenguaje natural amigable (ej: "Lunes 17 de 17:00 a 18:00").
     4.**Responder:** Presenta las opciones de forma clara y numerada.
-        - Si la lista de datos está vacía, di claramente que no hay huecos alternativos y ofrece 'cancelar'.
-        - Al final, indica al usuario que puede elegir una opción o 'cancelar'.
+        - Si la lista de datos está vacía, di claramente que no hay huecos alternativos.
+        - Al final, indica al usuario que puede elegir una opción
+          * Escribir 'forzar' para crear el evento a pesar del conflicto
+          * Escribir 'cancelar' para cancelar la acción
     
     Tu respuesta final (solo el texto para el usuario):
     """

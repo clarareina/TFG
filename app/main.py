@@ -174,12 +174,27 @@ async def chat_endpoint(request: UserRequest):
     3. Devuelve la respuesta o pide más información.
     """
     try:
-        # Recuperamos las preferencias de la BD antes
+        # Recuperamos las preferencias y el historial de la BD
         db = SessionLocal()
         user = db.query(User).filter(User.email == request.user_id).first()
         user_prefs = user.preferences if user and user.preferences else ""
-        db.close()    
-        agent_result = run_agent(request.query, request.user_id, user_preferences=user_prefs) 
+        
+        # Cargar historial de conversación (JSON -> lista)
+        conversation_history = []
+        if user and user.conversation_history:
+            try:
+                conversation_history = json.loads(user.conversation_history)
+            except:
+                conversation_history = []
+        
+        db.close()
+        
+        agent_result = run_agent(
+            request.query, 
+            request.user_id, 
+            user_preferences=user_prefs,
+            conversation_history=conversation_history
+        ) 
         
         # Protección contra resultado None
         if agent_result is None:
@@ -198,6 +213,18 @@ async def chat_endpoint(request: UserRequest):
             agent_result.get("messages") or 
             "Sin respuesta."
         )
+        
+        # Actualizar historial de conversación en la BD (mantener últimos 6 mensajes = 3 turnos)
+        db = SessionLocal()
+        user = db.query(User).filter(User.email == request.user_id).first()
+        if user:
+            conversation_history.append({"role": "user", "content": request.query})
+            conversation_history.append({"role": "assistant", "content": str(result)})
+            # Mantener solo los últimos 6 mensajes (3 turnos de conversación)
+            conversation_history = conversation_history[-6:]
+            user.conversation_history = json.dumps(conversation_history, ensure_ascii=False)
+            db.commit()
+        db.close()
 
         return AgentResponse(
             status=agent_result.get("status", "complete"),

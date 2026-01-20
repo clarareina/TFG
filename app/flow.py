@@ -24,13 +24,14 @@ def _clear_user_state(user_id: str):
     except Exception as e:
         print(f"[Flow] Error limpiando estado: {e}")
 
-def _run_new_flow(user_input: str, user_id: str, config: dict, user_preferences: str) -> dict:
+def _run_new_flow(user_input: str, user_id: str, config: dict, user_preferences: str, conversation_history: list = None) -> dict:
     """Ejecuta el flujo desde el principio."""
     
     inputs = {
         "input_user": user_input, 
         "user_id": user_id, 
-        "user_preferences": user_preferences 
+        "user_preferences": user_preferences,
+        "conversation_history": conversation_history or []
     }
     
     result = None
@@ -54,7 +55,7 @@ def _run_new_flow(user_input: str, user_id: str, config: dict, user_preferences:
     
     return {"status": "complete", "response": result or "No pude procesar tu mensaje. Por favor, inténtalo de nuevo."}
 
-def run_agent(user_input: str, user_id: str, user_preferences: str = "") -> dict:
+def run_agent(user_input: str, user_id: str, user_preferences: str = "", conversation_history: list = None) -> dict:
     """
     Ejecuta el agente gestionando pausas y reanudaciones.
     Si la reanudación falla, limpia el estado y procesa como nueva conversación.
@@ -91,13 +92,13 @@ def run_agent(user_input: str, user_id: str, user_preferences: str = "") -> dict
                 #Fallo en reanudación
                 # Si reanudamos pero el grafo no devolvió nada útil borramos todo y tratamos el mensaje como si fuera nuevo.
                 _clear_user_state(user_id)
-                return _run_new_flow(user_input, user_id, config, user_preferences)
+                return _run_new_flow(user_input, user_id, config, user_preferences, conversation_history)
                 
         except Exception as e:
             _clear_user_state(user_id)
-            return _run_new_flow(user_input, user_id, config, user_preferences)
+            return _run_new_flow(user_input, user_id, config, user_preferences, conversation_history)
     
     # 2. LOGICA DE INICIO NUEVO
     # Si no había estado pendiente, es una conversación normal.
     else:
-        return _run_new_flow(user_input, user_id, config, user_preferences)
+        return _run_new_flow(user_input, user_id, config, user_preferences, conversation_history)

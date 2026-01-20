@@ -114,7 +114,17 @@ def router_node(state: AgentState) -> dict:
 def tool_interpreter(state: dict) -> dict:
     """Envía el prompt al modelo Gemini y devuelve la estructura JSON de acciones."""
     user_input = state['input_user']
-    prompt_final = f"{tool_prompt()}\n\nUsuario: {user_input}\n"
+    conversation_history = state.get('conversation_history', [])
+    
+    # Construir contexto de conversación reciente
+    history_context = ""
+    if conversation_history:
+        history_context = "\n\nCONTEXTO DE CONVERSACIÓN RECIENTE (para entender referencias como 'eso', 'lo mismo', etc.):\n"
+        for msg in conversation_history:
+            role = "Usuario" if msg.get("role") == "user" else "Asistente"
+            history_context += f"{role}: {msg.get('content', '')}\n"
+    
+    prompt_final = f"{tool_prompt()}{history_context}\n\nUsuario: {user_input}\n"
     response_text = generar_respuesta(prompt_final)
     json_object = interpret_response_json(response_text)
 
@@ -130,7 +140,17 @@ def tool_interpreter(state: dict) -> dict:
 def reasoning_interpreter(state: dict) -> dict:
     """Envía el prompt al modelo Gemini y devuelve la estructura JSON de acciones."""
     user_input = state['input_user']
-    prompt_final = f"{reasoning_prompt()}\n\nUsuario: {user_input}\n"
+    conversation_history = state.get('conversation_history', [])
+    
+    # Construir contexto de conversación reciente
+    history_context = ""
+    if conversation_history:
+        history_context = "\n\nCONTEXTO DE CONVERSACIÓN RECIENTE (para entender referencias como 'eso', 'lo mismo', etc.):\n"
+        for msg in conversation_history:
+            role = "Usuario" if msg.get("role") == "user" else "Asistente"
+            history_context += f"{role}: {msg.get('content', '')}\n"
+    
+    prompt_final = f"{reasoning_prompt()}{history_context}\n\nUsuario: {user_input}\n"
     response_text = generar_respuesta(prompt_final)
     json_object = interpret_response_json(response_text)
 
@@ -643,13 +663,22 @@ def process_user_decision(state: AgentState) -> dict:
     """
     user_choice = state.get("user_choice", '')  
     original_user_input = state.get("input_user", "")  
-    llm_previous_response = state.get("api_response_list", [""])[0]  
+    llm_previous_response = state.get("api_response_list", [""])[0]
+    pending_action = state.get("pending_action")
 
     if user_choice.lower() == "cancelar":
         return {
             "api_response_list": ["Acción cancelada"],
             "pending_action": None,
             "routing_decision": "end",
+            "verification_result": VerificationResult(conflict_found=False, conflicting_events=[])
+        }
+    
+    elif user_choice.lower() == "forzar" and pending_action:
+        return {
+            "structured_json_list": [pending_action],  # Restauramos la acción original
+            "pending_action": None,
+            "routing_decision": "force_execute",  # Nueva ruta directa a executor
             "verification_result": VerificationResult(conflict_found=False, conflicting_events=[])
         }
     
@@ -783,7 +812,8 @@ workflow.add_conditional_edges("process_user_decision",
         "execute": "tool_executor", # (no se usa mucho aquí, solemos ir a interpreter)
         "end": "confirmer",         # Usuario canceló
         "invalid_choice": "get_user_decision",
-        "to_interpreter": "tool_interpreter"  # Combina respuestas y pasa a tool_interpreter para reintentar
+        "to_interpreter": "tool_interpreter",  # Combina respuestas y pasa a tool_interpreter para reintentar
+        "force_execute": "tool_executor"  # Forzar ejecución sin verificar conflictos
     }
 )
 
