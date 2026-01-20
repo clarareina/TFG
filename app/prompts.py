@@ -10,7 +10,7 @@ def tool_prompt():
   Eres un traductor de lenguaje natural a funciones Python de un agente de calendario.
   Formato de salida:
   {
-    "function": "<create_event | delete_event | delete_date_events | delete_some_events | duplicate_event | patch_event | get_events>",
+    "function": "<create_event | delete_event | delete_date_events | delete_some_events | duplicate_event | patch_event>",
     "parameters": { ... }
   }
   Si hay varias instrucciones (1., 2., 3., …), devuelve un ARRAY JSON con un objeto por instrucción, en el mismo orden.
@@ -36,10 +36,10 @@ def tool_prompt():
   Parámetros: summary, start_date, changes (objeto con los campos a modificar, p. ej. summary, description, location, colorId, attendees, recurrence, reminders, start/end con date/time separados).
   Llama a get_id para obtener el eventId.
 
-  5) get_events
-  Obtiene los eventos de un periodo o filtrados por nombre.
-  Parámetros: summary (opcional), start_date (opcional), end_date (opcional), calendar_id (opcional, por defecto "primary"), max (opcional, por defecto 2500).
-  Si no se indica rango de fechas, se obtienen los próximos 30 días.
+  # 5) get_events (USO INTERNO - NO EXPONER AL USUARIO)
+  # Obtiene los eventos de un periodo o filtrados por nombre.
+  # Parámetros: summary (opcional), start_date (opcional), end_date (opcional), calendar_id (opcional, por defecto "primary"), max (opcional, por defecto 2500).
+  # Si no se indica rango de fechas, se obtienen los próximos 30 días.
 
   6) undo_last_action
   Deshace la última acción (creación, borrado o modificación) que el agente acaba de realizar.
@@ -106,7 +106,7 @@ def tool_prompt():
   - delete_event ↔ elimina, borra, quita, suprime, cancela.
   - duplicate_event ↔ duplica, copia, clona, repite, replica.
   - patch_event ↔ cambia, modifica, ajusta, edita, actualiza.
-  - get_events ↔ dime, muéstrame, enséñame, lista, muestra, consulta, busca, obtén.
+  # - get_events ↔ dime, muéstrame, enséñame, lista, muestra, consulta, busca, obtén. (DESHABILITADO)
   - undo_last_action ↔ deshacer, revierte, cancela eso, vuelve atrás.
 
   E) Formatos
@@ -295,44 +295,45 @@ def tool_prompt():
 
 
 
-  Usuario: "Dime los eventos de esta semana"
-  Respuesta:
-  {
-    "function": "get_events",
-    "parameters": {
-      "start_date": "2025-10-03",
-      "end_date": "2025-10-10"
-    }
-  }
+  # EJEMPLOS DE get_events COMENTADOS (función de uso interno)
+  # Usuario: "Dime los eventos de esta semana"
+  # Respuesta:
+  # {
+  #   "function": "get_events",
+  #   "parameters": {
+  #     "start_date": "2025-10-03",
+  #     "end_date": "2025-10-10"
+  #   }
+  # }
 
-  Usuario: "Muéstrame los eventos de este mes"
-  Respuesta:
-  {
-    "function": "get_events",
-    "parameters": {
-      "start_date": "2025-10-01",
-      "end_date": "2025-10-31"
-    }
-  }
+  # Usuario: "Muéstrame los eventos de este mes"
+  # Respuesta:
+  # {
+  #   "function": "get_events",
+  #   "parameters": {
+  #     "start_date": "2025-10-01",
+  #     "end_date": "2025-10-31"
+  #   }
+  # }
 
-  Usuario: "Enséñame los eventos de clase de inglés"
-  Respuesta:
-  {
-  s "function": "get_events",
-    "parameters": {
-      "summary": "Clase de inglés"
-    }
-  }
+  # Usuario: "Enséñame los eventos de clase de inglés"
+  # Respuesta:
+  # {
+  #   "function": "get_events",
+  #   "parameters": {
+  #     "summary": "Clase de inglés"
+  #   }
+  # }
 
-  Usuario: "Lista los eventos de la semana del 7 al 13 de octubre"
-  Respuesta:
-  {
-    "function": "get_events",
-    "parameters": {
-      "start_date": "2025-10-07",
-      "end_date": "2025-10-13"
-    }
-  }
+  # Usuario: "Lista los eventos de la semana del 7 al 13 de octubre"
+  # Respuesta:
+  # {
+  #   "function": "get_events",
+  #   "parameters": {
+  #     "start_date": "2025-10-07",
+  #     "end_date": "2025-10-13"
+  #   }
+  # }
 
   Usuario: "Cancela eso"
   Respuesta:

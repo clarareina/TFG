@@ -64,6 +64,7 @@ class AgentResponse(BaseModel):
     status: str
     response: str
     suggested_slots: Optional[list] = None
+    calendar_modified: bool = False
 
 class PreferencesRequest(BaseModel):
     user_id: str
@@ -226,9 +227,19 @@ async def chat_endpoint(request: UserRequest):
             db.commit()
         db.close()
 
+        # Detectar si hubo modificación del calendario basándose en la respuesta
+        calendar_modified = False
+        result_str = str(result).lower()
+        if any(keyword in result_str for keyword in [
+            'creado', 'eliminado', 'modificado', 'actualizado', 'duplicado',
+            'acción deshecha', 'restaurado', 'he eliminado', 'se ha creado'
+        ]):
+            calendar_modified = True
+
         return AgentResponse(
             status=agent_result.get("status", "complete"),
-            response=str(result)
+            response=str(result),
+            calendar_modified=calendar_modified
         )
 
     except Exception as e:

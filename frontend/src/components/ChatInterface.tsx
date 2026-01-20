@@ -41,7 +41,7 @@ const ChatInterface = ({ userId }: ChatProps) => {
     // 1. Guardamos y mostramos el mensaje del usuario
     const userText = input
     setInput('')
-    
+
     const userMsg: Message = { id: Date.now(), text: userText, sender: 'user' }
     setMessages(prev => [...prev, userMsg])
     setIsLoading(true)
@@ -57,7 +57,7 @@ const ChatInterface = ({ userId }: ChatProps) => {
       })
 
       if (!response.ok) throw new Error('Error en el servidor')
-      
+
       const data = await response.json()
 
       // 3. Mostrar respuesta del Bot
@@ -68,10 +68,12 @@ const ChatInterface = ({ userId }: ChatProps) => {
       }
       setMessages(prev => [...prev, botMsg])
 
-      // 4. Actualizar el calendario si el bot hizo cambios
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('calendarUpdated', { bubbles: true }))
-      }, 100)
+      // 4. Actualizar el calendario SOLO si el asistente hizo cambios
+      if (data.calendar_modified) {
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('calendarUpdated', { bubbles: true }))
+        }, 100)
+      }
 
     } catch (error) {
       console.error(error)
@@ -107,7 +109,7 @@ const ChatInterface = ({ userId }: ChatProps) => {
             )}
           </div>
         ))}
-        
+
         {isLoading && (
           <div className="message-bubble bot" style={{ opacity: 0.7 }}>
             Pensando...
