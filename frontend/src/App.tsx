@@ -200,50 +200,91 @@ function App() {
           display: 'flex', justifyContent: 'center', alignItems: 'center'
         }}>
           <div className="card" style={{
-            width: '600px',
+            width: '500px',
             maxWidth: '95%',
-            padding: '40px',
-            display: 'flex', flexDirection: 'column', gap: '15px',
-            boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
-            borderRadius: '12px'
+            padding: '30px',
+            display: 'flex', flexDirection: 'column', gap: '18px',
+            boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
+            borderRadius: '16px'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '1.3rem' }}>⚙️ Mis Preferencias</h3>
-              <button onClick={() => setShowPrefs(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#666' }}>✕</button>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600 }}>⚙️ Preferencias</h3>
+              <button
+                onClick={() => setShowPrefs(false)}
+                style={{
+                  background: '#f3f4f6',
+                  border: 'none',
+                  fontSize: '1rem',
+                  cursor: 'pointer',
+                  color: '#6b7280',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >✕</button>
             </div>
 
-            <p style={{ fontSize: '0.95rem', color: '#555', lineHeight: '1.5' }}>
-              Escribe aquí tus preferencias e instrucciones fijas para el asistente
+            <p style={{ fontSize: '0.9rem', color: '#6b7280', lineHeight: '1.5', margin: 0 }}>
+              Define reglas y preferencias que el asistente tendrá en cuenta al gestionar tu agenda.
             </p>
 
             <textarea
-              rows={8}
+              rows={6}
               value={prefsText}
               onChange={(e) => setPrefsText(e.target.value)}
-              placeholder="Ejemplo:&#10;- Trabajo de 9:00 a 18:00&#10;- Los viernes salgo a las 15:00&#10;- No me pongas reuniones los viernes&#10;- Prefiero ir al gimnasio por la tarde&#10;- ..."
+              placeholder="Ejemplos de preferencias:&#10;&#10;🕐 Trabajo de 9:00 a 18:00&#10;🏋️ Prefiero gimnasio por la tarde&#10;🚫 No reuniones los viernes&#10;☕ Descansos de 15 min entre eventos"
               style={{
-                width: '100%', padding: '10px', borderRadius: '8px',
-                border: '1px solid #ccc', resize: 'vertical', fontFamily: 'inherit',
-                fontSize: '1rem', lineHeight: '1.5'
+                width: '100%',
+                padding: '14px',
+                borderRadius: '10px',
+                border: '2px solid #e5e7eb',
+                resize: 'vertical',
+                fontFamily: 'inherit',
+                fontSize: '0.95rem',
+                lineHeight: '1.6',
+                transition: 'border-color 0.2s',
+                outline: 'none',
+                boxSizing: 'border-box'
               }}
+              onFocus={(e) => e.currentTarget.style.borderColor = '#93c5fd'}
+              onBlur={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
             />
 
-            <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', marginTop: '10px' }}>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setShowPrefs(false)}
-                style={{ padding: '10px 20px', background: 'transparent', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', fontSize: '0.95rem' }}>
+                style={{
+                  padding: '10px 20px',
+                  background: 'transparent',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  color: '#4b5563',
+                  fontWeight: 500
+                }}>
                 Cancelar
               </button>
               <button
                 onClick={handleSavePrefs}
                 disabled={isSavingPrefs}
                 style={{
-                  padding: '10px 20px', background: '#2563eb', color: 'white',
-                  border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold',
-                  fontSize: '0.95rem', opacity: isSavingPrefs ? 0.7 : 1
+                  padding: '10px 24px',
+                  background: '#2563eb',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  opacity: isSavingPrefs ? 0.7 : 1,
+                  boxShadow: '0 2px 4px rgba(37,99,235,0.3)'
                 }}
               >
-                {isSavingPrefs ? "Guardando..." : "Guardar Cambios"}
+                {isSavingPrefs ? "Guardando..." : "💾 Guardar"}
               </button>
             </div>
           </div>
@@ -255,7 +296,7 @@ function App() {
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', alignItems: 'center' }}>
           <h3 style={{ margin: 0 }}>Asistente</h3>
 
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
             <button
               onClick={() => setShowPrefs(true)}
               title="Configurar Preferencias"
@@ -263,8 +304,32 @@ function App() {
             >
               ⚙️
             </button>
-            <button onClick={handleLogout} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.8rem', color: '#ef4444' }}>
-              Cerrar Sesión
+            <button
+              onClick={handleLogout}
+              title="Cerrar Sesión"
+              style={{
+                border: '1px solid #e5e7eb',
+                background: '#f9fafb',
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+                color: '#6b7280',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontWeight: 500,
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#fee2e2';
+                e.currentTarget.style.borderColor = '#fca5a5';
+                e.currentTarget.style.color = '#dc2626';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#f9fafb';
+                e.currentTarget.style.borderColor = '#e5e7eb';
+                e.currentTarget.style.color = '#6b7280';
+              }}
+            >
+              Salir
             </button>
           </div>
 

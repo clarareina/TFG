@@ -110,6 +110,64 @@ const ChatInterface = ({ userId }: ChatProps) => {
           </div>
         ))}
 
+        {/* Sugerencias rápidas cuando el chat está vacío */}
+        {messages.length === 1 && !isLoading && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            marginTop: '20px',
+            alignItems: 'flex-end',
+            paddingRight: '10px'
+          }}>
+            {[
+              '📅 Crear evento',
+              '🔍 Buscar hueco libre',
+              '✏️ Modificar evento',
+              '🗑️ Eliminar evento',
+              '📊 Resumen semanal'
+            ].map((suggestion, idx) => (
+              <button
+                key={idx}
+                onClick={() => {
+                  const queries = [
+                    'Crea un evento ',
+                    'Busca un hueco para ',
+                    'Modifica el evento ',
+                    'Elimina el evento ',
+                    'Resúmeme la semana'
+                  ];
+                  setInput(queries[idx]);
+                }}
+                style={{
+                  padding: '10px 16px',
+                  fontSize: '0.85rem',
+                  background: '#2563eb',
+                  border: 'none',
+                  borderRadius: '18px',
+                  cursor: 'pointer',
+                  color: 'white',
+                  fontWeight: 500,
+                  transition: 'all 0.2s',
+                  boxShadow: '0 2px 4px rgba(37,99,235,0.3)'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#1d4ed8';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(37,99,235,0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#2563eb';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(37,99,235,0.3)';
+                }}
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
+
         {isLoading && (
           <div className="message-bubble bot" style={{ opacity: 0.7 }}>
             Pensando...

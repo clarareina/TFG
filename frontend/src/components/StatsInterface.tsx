@@ -20,11 +20,11 @@ interface DistributionData {
     name: string
     value: number
     minutes: number
-    [key: string]: any; 
+    [key: string]: any;
 }
 
 interface StatsInterfaceProps {
-    userId: string | null; 
+    userId: string | null;
 }
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6B7280', '#14B8A6'];
@@ -48,7 +48,7 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
     const formatMarkdown = (text: string): string => {
         return text
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*(.+?)\*/g, '<span>$1</span>') 
+            .replace(/\*(.+?)\*/g, '<span>$1</span>')
             .replace(/^- /gm, '• ')
             .replace(/\n/g, '<br>')
     }
@@ -63,8 +63,8 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
 
         try {
             const res = await fetch(`${API_BASE_URL}/api/calendar/events?user_id=${userId}`)
-            if (!res.ok) return 
-            
+            if (!res.ok) return
+
             const data: CalendarEvent[] = await res.json()
 
             const now = new Date()
@@ -104,7 +104,7 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
     const fetchDistribution = async () => {
         if (!userId) return
         // Si ya hay datos, no los pedimos de nuevo a menos que se fuerce la limpieza
-        if (distributionData.length > 0) return 
+        if (distributionData.length > 0) return
 
         setIsLoadingDist(true)
         try {
@@ -154,8 +154,8 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
                 console.log('[StatsInterface] Recibido evento calendarUpdated, refrescando...');
                 calculateStats()
                 // Limpiamos los datos de distribución para que se recalculen la próxima vez que se abra el modal
-                setDistributionData([]) 
-                
+                setDistributionData([])
+
                 requestCount.current += 1
                 // Refrescamos recomendación cada 5 cambios para ahorrar tokens de Gemini
                 if (requestCount.current % 5 === 0) {
@@ -185,22 +185,22 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
                     backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999,
                     display: 'flex', justifyContent: 'center', alignItems: 'center'
                 }}>
-                    <div className="card" style={{ 
-                        width: '500px', maxWidth: '90%', padding: '25px', 
+                    <div className="card" style={{
+                        width: '500px', maxWidth: '90%', padding: '25px',
                         backgroundColor: 'white', borderRadius: '12px',
                         display: 'flex', flexDirection: 'column', gap: '20px',
                         boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
                     }}>
-                        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                            <h3 style={{margin:0}}>Desglose de Tiempo Ocupado</h3>
-                            <button onClick={() => setShowModal(false)} style={{background:'none', border:'none', fontSize:'1.2rem', cursor:'pointer'}}>✕</button>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h3 style={{ margin: 0 }}>Desglose de Tiempo Ocupado</h3>
+                            <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
                         </div>
 
-                        <div style={{ height: '300px', width: '100%', display:'flex', justifyContent:'center', alignItems:'center' }}>
+                        <div style={{ height: '300px', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                             {isLoadingDist ? (
-                                <span style={{color:'#666'}}>Analizando eventos...</span>
+                                <span style={{ color: '#666' }}>Analizando eventos...</span>
                             ) : distributionData.length === 0 ? (
-                                <span style={{color:'#666'}}>No hay suficientes datos.</span>
+                                <span style={{ color: '#666' }}>No hay suficientes datos.</span>
                             ) : (
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
@@ -215,9 +215,9 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
                                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                             ))}
                                         </Pie>
-                                        <Tooltip 
+                                        <Tooltip
                                             formatter={(value: number, name: string, props: any) => [`${value}%`, `${props.payload.name} (${props.payload.minutes} min)`]}
-                                            contentStyle={{borderRadius:'8px'}}
+                                            contentStyle={{ borderRadius: '8px' }}
                                         />
                                         <Legend layout="vertical" verticalAlign="middle" align="right" />
                                     </PieChart>
@@ -245,7 +245,7 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
                 `}
             </style>
 
-            <button 
+            <button
                 onClick={handleOpenModal}
                 title="Ver desglose detallado"
                 style={{
@@ -277,25 +277,26 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
                     />
                 </svg>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#EF4444' }}></div>
-                        <span style={{ fontSize: '0.8rem', color: '#374151' }}>Ocupado {stats.occupiedPercent}%</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#EF4444' }}></div>
+                        <span style={{ fontSize: '0.9rem', color: '#374151', fontWeight: 500 }}>Ocupado {stats.occupiedPercent}%</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#60A5FA' }}></div>
-                        <span style={{ fontSize: '0.8rem', color: '#374151' }}>Libre {stats.freePercent}%</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#60A5FA' }}></div>
+                        <span style={{ fontSize: '0.9rem', color: '#374151', fontWeight: 500 }}>Libre {stats.freePercent}%</span>
                     </div>
                 </div>
             </div>
 
             <div style={{
-                fontSize: '0.85rem', color: '#4B5563', lineHeight: '1.4',
-                padding: '15px 10px', backgroundColor: '#F9FAFB',
-                borderRadius: '8px', overflow: 'auto', maxHeight: '120px'
+                fontSize: '0.95rem', color: '#374151', lineHeight: '1.6',
+                padding: '16px 14px', backgroundColor: '#F9FAFB',
+                borderRadius: '10px', overflow: 'auto', maxHeight: '140px',
+                fontWeight: 450
             }}>
                 {isLoading ? (
-                    <span style={{ color: '#9CA3AF' }}>Analizando tu agenda...</span> 
+                    <span style={{ color: '#9CA3AF' }}>Analizando tu agenda...</span>
                 ) : (
                     <span dangerouslySetInnerHTML={{ __html: formatMarkdown(recommendation) }} />
                 )}

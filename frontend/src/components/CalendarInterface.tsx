@@ -29,9 +29,9 @@ const CalendarView = ({ userId, onLoadingChange }: CalendarViewProps) => {
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/calendar/events?user_id=${userId}`)
-      
+
       if (!res.ok) throw new Error("Error al obtener eventos")
-      
+
       const data = await res.json()
 
       // 3. FORMATEAR DATOS
@@ -124,17 +124,44 @@ const CalendarView = ({ userId, onLoadingChange }: CalendarViewProps) => {
         /* --- 4. ESTILO DE LOS EVENTOS --- */
         .fc-event {
             cursor: pointer;
-            font-size: 0.75rem !important;
+            font-size: 0.7rem !important;
             line-height: 1.2 !important;
-            border-radius: 3px !important;
-            padding: 1px 2px !important;
+            border-radius: 4px !important;
+            padding: 1px 3px !important;
+            font-weight: 500 !important;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+        }
+        
+        .fc-event:hover {
+            transform: scale(1.02);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15) !important;
         }
         
         .fc-event-title {
-            font-weight: 500 !important;
+            font-weight: 600 !important;
             white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
+        }
+
+        /* Números de día más grandes y visibles */
+        .fc-daygrid-day-number {
+            font-size: 1rem !important;
+            font-weight: 600 !important;
+            color: #374151 !important;
+            padding: 8px !important;
+        }
+        
+        /* Día actual resaltado */
+        .fc-day-today .fc-daygrid-day-number {
+            background: #2563eb !important;
+            color: white !important;
+            border-radius: 50% !important;
+            width: 28px !important;
+            height: 28px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
         }
 
         /* Ajustes generales cabecera */
@@ -145,8 +172,8 @@ const CalendarView = ({ userId, onLoadingChange }: CalendarViewProps) => {
           justify-content: space-between !important;
           align-items: center !important;
         }
-        .fc-col-header-cell-cushion { font-weight: 600; color: #888; text-transform: capitalize; font-size: 0.8rem; }
-        .fc-theme-standard td, .fc-theme-standard th { border-color: #f3f4f6 !important; }
+        .fc-col-header-cell-cushion { font-weight: 700; color: #6b7280; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px; }
+        .fc-theme-standard td, .fc-theme-standard th { border-color: #e5e7eb !important; }
         
         /* Altura uniforme para todas las filas */
         .fc-daygrid-body tr {
@@ -158,6 +185,12 @@ const CalendarView = ({ userId, onLoadingChange }: CalendarViewProps) => {
         }
         .fc-daygrid-day-events {
           overflow: hidden !important;
+          padding: 2px !important;
+        }
+        
+        /* Tooltip para eventos cortados */
+        .fc-event[title] {
+          position: relative;
         }
         
       `}</style>
