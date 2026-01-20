@@ -738,6 +738,7 @@ def analysis_prompt(function_name, raw_data_str, user_query, user_preferences=""
         - ¿Menciona "Reunión" o "Trabajo"? -> Prioriza horario laboral (09:00-18:00).
         - ¿Menciona "Fiesta" o "Salir"? -> Prioriza tarde/noche.
         - etc
+        -Entre cada evento debes intentar dejar 5 minutos de margen para cambio de contexto
     2.**Filtrar y Seleccionar:**
         - Si el usuario pidió una hora explícita (ej: "a las 10"), esa manda sobre todo lo demás.
         - Si NO pidió hora, usa la lógica del paso 1 para elegir los 3 mejores huecos que encajen con la naturaleza del evento.
@@ -776,6 +777,8 @@ def analysis_prompt(function_name, raw_data_str, user_query, user_preferences=""
 
     4.  **Responder:** Respuesta natural y directa.
 
+    -Entre cada evento debes intentar dejar 5 minutos de margen para cambio de contexto
+
     Tu respuesta final:
     """
 
@@ -798,6 +801,8 @@ def analysis_prompt(function_name, raw_data_str, user_query, user_preferences=""
     2.  **Usar Conocimiento General:** Accede a tu base de conocimiento sobre cuánto suelen durar estas cosas en el mundo real.
     3.  **Calcular Rangos:** Define un tiempo mínimo y máximo realista. Considera imprevistos.
     4.  **Responder:** Da una estimación directa (ej: "Suele tardar entre 45 y 60 minutos") y añade un pequeño consejo si aplica.
+
+    -Entre cada evento debes intentar dejar 5 minutos de margen para cambio de contexto
 
     Tu respuesta final:
     """

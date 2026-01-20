@@ -393,6 +393,8 @@ def verification_node(state: AgentState) -> dict:
                     
         elif function_name == "patch_event":
             changes = parameters.get("changes", {})
+            original_summary = parameters.get("summary")  # Summary del evento que estamos modificando
+            
             if "start" in changes:
                 start_data = changes.get("start", {})
                 end_data = changes.get("end", {}) 
@@ -423,24 +425,63 @@ def verification_node(state: AgentState) -> dict:
         if not check_start:
             continue
         
-        scan_result_package = calendar_tools.get_events(
-            user_id=current_user_id, 
-            start_date=check_start, 
-            end_date=check_end,
-            max=2500 
-        )
-
-        scan_response_str = scan_result_package.get("response", "")
-
-        if "No se encontraron eventos" in scan_response_str:
-            # Sin conflicto para esta acción, continuar verificando las demás
-            continue
-        elif "Error" in scan_response_str or "inválida" in scan_response_str:
-            continue
+        # Para patch_event, necesitamos excluir el evento original de la verificación
+        if function_name == "patch_event" and original_summary:
+            # Obtener eventos directamente de la API para poder filtrar
+            from .auth import get_calendar_service
+            import unicodedata
+            
+            def normalize(text):
+                text = unicodedata.normalize('NFD', text)
+                text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+                return text.lower()
+            
+            events_result = get_calendar_service(current_user_id).events().list(
+                calendarId="primary",
+                timeMin=check_start,
+                timeMax=check_end,
+                maxResults=50,
+                singleEvents=True,
+                orderBy="startTime"
+            ).execute()
+            
+            events = events_result.get("items", [])
+            original_summary_normalized = normalize(original_summary)
+            
+            # Filtrar excluyendo el evento original (el que estamos modificando)
+            conflicting_events = [
+                e for e in events 
+                if normalize(e.get("summary", "")) != original_summary_normalized
+            ]
+            
+            if not conflicting_events:
+                # No hay conflicto real (solo el evento original)
+                continue
+            else:
+                # Hay otros eventos que conflictan
+                conflict_names = ", ".join([e.get("summary", "(Sin título)") for e in conflicting_events[:3]])
+                result = VerificationResult(conflict_found=True, conflicting_events=[{"summary": conflict_names}])
+                return {"verification_result": result, "pending_action": action}
         else:
-            # ¡Conflicto encontrado! Retornar inmediatamente
-            result = VerificationResult(conflict_found=True, conflicting_events=[{"summary": scan_response_str}])
-            return {"verification_result": result, "pending_action": action}
+            # Para create_event y duplicate_event, usar el método original
+            scan_result_package = calendar_tools.get_events(
+                user_id=current_user_id, 
+                start_date=check_start, 
+                end_date=check_end,
+                max=2500 
+            )
+
+            scan_response_str = scan_result_package.get("response", "")
+
+            if "No se encontraron eventos" in scan_response_str:
+                # Sin conflicto para esta acción, continuar verificando las demás
+                continue
+            elif "Error" in scan_response_str or "inválida" in scan_response_str:
+                continue
+            else:
+                # ¡Conflicto encontrado! Retornar inmediatamente
+                result = VerificationResult(conflict_found=True, conflicting_events=[{"summary": scan_response_str}])
+                return {"verification_result": result, "pending_action": action}
     
     # Si llegamos aquí, ninguna acción tiene conflicto
     result = VerificationResult(conflict_found=False, conflicting_events=[])
