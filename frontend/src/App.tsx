@@ -235,7 +235,7 @@ function App() {
               rows={6}
               value={prefsText}
               onChange={(e) => setPrefsText(e.target.value)}
-              placeholder="Ejemplos de preferencias:&#10;&#10;🕐 Trabajo de 9:00 a 18:00&#10;🏋️ Prefiero gimnasio por la tarde&#10;🚫 No reuniones los viernes&#10;☕ Descansos de 15 min entre eventos"
+              placeholder="Ejemplos de preferencias:&#10;&#10; - Trabajo de 9:00 a 18:00&#10; - Prefiero gimnasio por la tarde&#10; - No reuniones los viernes&#10; - Descansos de 15 min entre eventos"
               style={{
                 width: '100%',
                 padding: '14px',
@@ -329,7 +329,7 @@ function App() {
                 e.currentTarget.style.color = '#6b7280';
               }}
             >
-              Salir
+              Cerrar Sesión
             </button>
           </div>
 

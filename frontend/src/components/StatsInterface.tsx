@@ -291,9 +291,9 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
 
             <div style={{
                 fontSize: '0.95rem', color: '#374151', lineHeight: '1.6',
-                padding: '16px 14px', backgroundColor: '#F9FAFB',
+                padding: '16px', backgroundColor: '#F9FAFB',
                 borderRadius: '10px', overflow: 'auto', maxHeight: '140px',
-                fontWeight: 450
+                fontWeight: 450, marginBottom: '10px'
             }}>
                 {isLoading ? (
                     <span style={{ color: '#9CA3AF' }}>Analizando tu agenda...</span>
