@@ -582,7 +582,7 @@ def reasoning_prompt():
 
   FUNCIONES DISPONIBLES:
 
-  1. 'find_free_slots': Busca huecos libres en la agenda.
+  1. 'find_free_slots': Busca huecos libres en TU agenda personal.
     - Params: 
       - duration (int): Duración en minutos. Si no se especifica, usa 60.
       - start_date (str YYYY-MM-DD): Fecha inicio de búsqueda.
@@ -590,13 +590,20 @@ def reasoning_prompt():
       - start_time (str HH:MM): Hora inicio (opcional).
       - end_time (str HH:MM): Hora fin (opcional).
 
-  2. 'get_events': Obtiene la lista de eventos para resumir o inspeccionar.
+  2. 'find_group_free_slots': Busca huecos libres COMUNES entre tú y otras personas (requiere que te hayan compartido su calendario).
+    - Params:
+      - people (list[str]): Lista de emails de las personas a consultar. OBLIGATORIO.
+      - duration (int): Duración en minutos. Si no se especifica, usa 60.
+      - start_date (str YYYY-MM-DD): Fecha inicio de búsqueda.
+      - end_date (str YYYY-MM-DD): Fecha fin de búsqueda.
+
+  3. 'get_events': Obtiene la lista de eventos para resumir o inspeccionar.
     - Params:
       - start_date (str YYYY-MM-DD): Fecha inicio.
       - end_date (str YYYY-MM-DD): Fecha fin.
       - summary (str, opcional): Filtro por palabra clave.
 
-  3. 'estimate_duration': Para preguntas sobre cuánto se tarda en hacer una actividad.
+  4. 'estimate_duration': Para preguntas sobre cuánto se tarda en hacer una actividad.
     - Params:
       - summary (str): Descripción de la actividad a estimar.
       - context (str, opcional): Detalles extra (temario, tipo de caries, etc).
@@ -689,6 +696,36 @@ def reasoning_prompt():
       }}
     }}
   ]
+
+  # CASO 7: Buscar hueco común con otra persona
+  Usuario: "Busca un hueco para reunirme con carlos@gmail.com esta semana"
+  JSON:
+  [
+    {{
+      "function": "find_group_free_slots",
+      "parameters": {{
+        "people": ["carlos@gmail.com"],
+        "duration": 60,
+        "start_date": "2025-11-17",
+        "end_date": "2025-11-23"
+      }}
+    }}
+  ]
+
+  # CASO 8: Buscar hueco común con varias personas
+  Usuario: "Cuando podemos quedar ana@gmail.com, pedro@gmail.com y yo para una reunión de 2h?"
+  JSON:
+  [
+    {{
+      "function": "find_group_free_slots",
+      "parameters": {{
+        "people": ["ana@gmail.com", "pedro@gmail.com"],
+        "duration": 120,
+        "start_date": "2025-11-17",
+        "end_date": "2025-11-30"
+      }}
+    }}
+  ]
   ---
 
   INSTRUCCIÓN:
@@ -716,8 +753,8 @@ def analysis_prompt(function_name, raw_data_str, user_query, user_preferences=""
       usar un tono específico o estimar duraciones).
       """
           
-    # CASO 1: SI VENIMOS DE BUSCAR HUECOS (find_free_slots)
-    if function_name == "find_free_slots":
+    # CASO 1: SI VENIMOS DE BUSCAR HUECOS (find_free_slots o find_group_free_slots)
+    if function_name in ["find_free_slots", "find_group_free_slots"]:
       prompt = f"""
     Eres un asistente de agenda inteligente y servicial.
     Tu objetivo es presentar opciones de horarios al usuario de forma clara y atractiva.

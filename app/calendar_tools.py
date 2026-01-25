@@ -808,7 +808,104 @@ def find_free_slots(user_id: str, duration=None, datetime_min=None, datetime_max
 
 
 
+def find_group_free_slots(user_id: str, people, duration=None, datetime_min=None, datetime_max=None, calendar_id="primary"):
+    free_slots = []
+    busy_slots = []
+    
+    if not duration:
+        duration = timedelta(hours=1)
 
+    if not datetime_min:
+        datetime_min = datetime.now(LOCAL_TZ).isoformat()
+    
+    if not datetime_max:
+        datetime_max = (datetime.now(LOCAL_TZ) + timedelta(days=30)).isoformat()
+
+    datetime_max_dt = datetime.fromisoformat(datetime_max)
+    
+    service = get_calendar_service(user_id)
+    
+    # lista de calendarios a consultar
+    users = [{"id": user_id}]
+    for p in people:
+        if p != user_id:
+            users.append({"id": p})
+
+    body = {
+        'timeMin': datetime_min, 
+        'timeMax': datetime_max,
+        'timeZone': 'Europe/Madrid',
+        'items': users
+    }
+
+    result = service.freebusy().query(body=body).execute()
+    
+    # Verificar errores de permiso para cada calendario
+    for user in users:
+        u_id = user["id"]
+        calendar_data = result.get('calendars', {}).get(u_id, {})
+        errors = calendar_data.get('errors', [])
+                
+        if errors:
+            return {"response": f"El usuario {u_id} no ha compartido su disponibilidad contigo. Pídele que comparta su calendario."}
+        
+        # Añadir los slots ocupados de este calendario
+        p_busy_slots = calendar_data.get('busy', [])
+        busy_slots.extend(p_busy_slots)
+    
+    busy_slots.sort(key=lambda x: x['start'])
+
+    # Fusionar slots ocupados que se solapan
+    merged_busy = []
+    for slot in busy_slots:
+        slot_start = datetime.fromisoformat(slot['start'])
+        slot_end = datetime.fromisoformat(slot['end'])
+        
+        if not merged_busy:
+            merged_busy.append({'start': slot_start, 'end': slot_end})
+        else:
+            last = merged_busy[-1]
+            # Si el slot actual empieza antes o justo cuando termina el último, fusionar
+            if slot_start <= last['end']:
+                last['end'] = max(last['end'], slot_end)
+            else:
+                merged_busy.append({'start': slot_start, 'end': slot_end})
+
+    if not merged_busy:
+        return [{"start": datetime_min, "end": datetime_max}]
+    
+    else:
+        current_time = datetime.fromisoformat(datetime_min)
+        free_slots = []
+
+        for busy_slot in merged_busy:
+            busy_start = busy_slot['start']
+            busy_end = busy_slot['end']
+
+            # Si el hueco empieza antes de AHORA MISMO, lo saltamos
+            if current_time < datetime.now(LOCAL_TZ):
+                current_time = datetime.now(LOCAL_TZ)
+
+            gap = busy_start - current_time
+                                            
+            if gap >= duration:
+                free_slots.append({
+                    "start": current_time.isoformat(),
+                    "end": busy_start.isoformat()
+                })
+
+            # Avanzar al final del slot ocupado (solo si es mayor que current_time)
+            if busy_end > current_time:
+                current_time = busy_end
+
+        # comprobar hueco final
+        if datetime_max_dt - current_time >= duration:
+            free_slots.append({
+                "start": current_time.isoformat(),
+                "end": datetime_max_dt.isoformat()
+            })
+
+    return free_slots
 
 
 def get_events_for_analytics(user_id: str):

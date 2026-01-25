@@ -257,6 +257,31 @@ def reasoning_executor(state: dict) -> dict:
                 )
                 execution_results.append(result)
 
+            # CASO 1B: BUSCAR HUECOS COMUNES (GRUPO)
+            elif function_name == "find_group_free_slots":
+                people = parameters.get("people", [])
+                mins = parameters.get("duration", 60)
+                duration_td = timedelta(minutes=int(mins))
+                
+                start_date = parameters.get("start_date")
+                end_date = parameters.get("end_date", start_date)
+                
+                dt_min = None
+                dt_max = None
+                if start_date:
+                    dt_min = datetime.strptime(f"{start_date} 00:00", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ).isoformat()
+                if end_date:
+                    dt_max = datetime.strptime(f"{end_date} 23:59", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ).isoformat()
+                
+                result = calendar_tools.find_group_free_slots(
+                    user_id=current_user_id,
+                    people=people,
+                    duration=duration_td,
+                    datetime_min=dt_min,
+                    datetime_max=dt_max
+                )
+                execution_results.append(result)
+
             # CASO 2: OBTENER EVENTOS
             elif function_name == "get_events":
                 parameters["user_id"] = current_user_id
@@ -759,9 +784,9 @@ def analysis_node(state: dict) -> dict:
     response_text = generar_respuesta(prompt_final).strip()
     
     # Determinar si hay opciones accionables
-    # find_free_slots: huecos que se pueden agendar
+    # find_free_slots / find_group_free_slots: huecos que se pueden agendar
     # estimate_duration: duraciones que se pueden usar para crear eventos
-    has_actionable_options = function_name in ["find_free_slots", "estimate_duration"]
+    has_actionable_options = function_name in ["find_free_slots", "find_group_free_slots", "estimate_duration"]
     
     return {
         "api_response_list": [response_text],
