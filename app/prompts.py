@@ -783,7 +783,7 @@ def analysis_prompt(function_name, raw_data_str, user_query, user_preferences=""
     3.**Formatear:** Convierte las fechas ISO a lenguaje natural amigable (ej: "Lunes 17 de 17:00 a 18:00").
     4.**Responder:** Presenta la opción u opciones elegidas.
         - Si la lista de datos está vacía, di claramente que no hay huecos en ese rango y sugiere ampliar la búsqueda.
-    Tu respuesta final (solo el texto para el usuario):
+    Tu respuesta final (solo el texto para el usuario), no hables de enviar correo o avisar (en caso de ser compartido):
     """
 
     # CASO 2: SI VENIMOS DE LEER EVENTOS (get_events)
