@@ -168,7 +168,7 @@ function App() {
         body: JSON.stringify({ user_id: userId, text: prefsText })
       })
       setShowPrefs(false)
-      alert("✅Preferencias actualizadas")
+      alert("Preferencias actualizadas")
     } catch (e) {
       alert("Error al guardar preferencias.")
     }
@@ -228,7 +228,7 @@ function App() {
             </div>
 
             <p style={{ fontSize: '0.9rem', color: '#6b7280', lineHeight: '1.5', margin: 0 }}>
-              Define reglas y preferencias que el asistente tendrá en cuenta al gestionar tu agenda.
+              Define instucciones y preferencias que el asistente tendrá en cuenta al gestionar tu agenda.
             </p>
 
             <textarea
@@ -284,14 +284,14 @@ function App() {
                   boxShadow: '0 2px 4px rgba(37,99,235,0.3)'
                 }}
               >
-                {isSavingPrefs ? "Guardando..." : "💾 Guardar"}
+                {isSavingPrefs ? "Guardando..." : "Guardar"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* CHAT - Clases añadidas para móvil */}
+      {/* CHAT */}
       <div className={`card ${activeTab === 'chat' ? 'active-mobile' : 'hidden-mobile'}`} style={{ padding: '20px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', alignItems: 'center' }}>
           <h3 style={{ margin: 0 }}>Asistente</h3>
@@ -337,7 +337,7 @@ function App() {
         <ChatInterface userId={userId} />
       </div>
 
-      {/* CALENDARIO - Clases añadidas para móvil */}
+      {/* CALENDARIO */}
       <div className={`card ${activeTab === 'calendar' ? 'active-mobile' : 'hidden-mobile'}`} style={{ padding: '20px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <h3 style={{ margin: 0 }}>Calendario</h3>
@@ -364,7 +364,7 @@ function App() {
         </div>
       </div>
 
-      {/* EVENTOS Y ESTADÍSTICAS - Clases añadidas para móvil */}
+      {/* EVENTOS Y ESTADÍSTICAS  */}
       <div className={`right-column ${activeTab === 'stats' ? 'active-mobile' : 'hidden-mobile'}`} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--separacion)', overflow: 'hidden' }}>
         <div className="card" style={{ flex: 5, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ margin: '0 0 15px 0', flexShrink: 0 }}>Próximos Eventos</h3>
@@ -374,7 +374,7 @@ function App() {
         </div>
 
         <div className="card" style={{ flex: 5, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <h3 style={{ margin: '0 0 10px 0', flexShrink: 0 }}>Recomendaciones</h3>
+          <h3 style={{ margin: '0 0 10px 0', flexShrink: 0 }}>Recomendaciones semana</h3>
           <StatsInterface userId={userId} />
         </div>
       </div>

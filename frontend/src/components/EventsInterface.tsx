@@ -39,7 +39,7 @@ const UpcomingEvents = ({ userId }: EventsProps) => {
             
             const data: CalendarEvent[] = await res.json()
 
-            // PROCESAMIENTO DE DATOS (Igual que antes)
+            // PROCESAMIENTO DE DATOS 
             const now = new Date()
             now.setHours(0, 0, 0, 0)
 

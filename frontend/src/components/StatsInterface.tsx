@@ -148,16 +148,15 @@ const StatsInterface = ({ userId }: StatsInterfaceProps) => {
             setStats({ occupiedPercent: 0, freePercent: 100, freeSlots: 0 })
         }
 
-        // --- CAMBIO NUEVO: ESCUCHA DE ACTUALIZACIÓN DEL CALENDARIO ---
+        // ESCUCHA DE ACTUALIZACIÓN DEL CALENDARIO 
         const handleCalendarUpdate = () => {
             if (userId) {
-                console.log('[StatsInterface] Recibido evento calendarUpdated, refrescando...');
                 calculateStats()
                 // Limpiamos los datos de distribución para que se recalculen la próxima vez que se abra el modal
                 setDistributionData([])
 
                 requestCount.current += 1
-                // Refrescamos recomendación cada 5 cambios para ahorrar tokens de Gemini
+                // Refrescamos recomendación cada 5 cambios para ahorrar peticiones
                 if (requestCount.current % 5 === 0) {
                     fetchRecommendation()
                 }
