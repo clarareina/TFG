@@ -786,6 +786,7 @@ def analysis_prompt(function_name, raw_data_str, user_query, user_preferences=""
     Tu respuesta final (solo el texto para el usuario), no hables de enviar correo o avisar (en caso de ser compartido):
     """
 
+
     # CASO 2: SI VENIMOS DE LEER EVENTOS (get_events)
     elif function_name == "get_events":
       prompt = f"""

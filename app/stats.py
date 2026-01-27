@@ -24,8 +24,9 @@ def calculate_time_analytics(events_list: list):
     df['end_dt'] = df['end'].apply(lambda x: x.get('dateTime') or x.get('date'))
 
     # Convertimos esas columnas a formato FECHA de Pandas
-    df['start_dt'] = pd.to_datetime(df['start_dt'], utc=True)
-    df['end_dt'] = pd.to_datetime(df['end_dt'], utc=True)
+    # format='mixed' para manejar tanto eventos con hora (ISO8601) como eventos de día completo (solo fecha)
+    df['start_dt'] = pd.to_datetime(df['start_dt'], utc=True, format='mixed')
+    df['end_dt'] = pd.to_datetime(df['end_dt'], utc=True, format='mixed')
 
     # CALCULAR DURACIÓN
     df['duration_minutes'] = (df['end_dt'] - df['start_dt']).dt.total_seconds() / 60
