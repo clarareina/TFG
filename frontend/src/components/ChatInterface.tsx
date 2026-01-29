@@ -111,7 +111,7 @@ const ChatInterface = ({ userId }: ChatProps) => {
 
         // Detectar si hubo modificación del calendario
         const resultStr = (finalData.response || '').toLowerCase()
-        const calendarModified = ['creado', 'eliminado', 'modificado', 'actualizado', 'duplicado', 'deshecha'].some(
+        const calendarModified = ['creado', 'eliminado', 'modificado', 'actualizado', 'duplicado', 'deshecha', 'deshecho'].some(
           keyword => resultStr.includes(keyword)
         )
 

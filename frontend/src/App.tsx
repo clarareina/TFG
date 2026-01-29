@@ -374,7 +374,7 @@ function App() {
         </div>
 
         <div className="card" style={{ flex: 5, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <h3 style={{ margin: '0 0 10px 0', flexShrink: 0 }}>Recomendaciones semana</h3>
+          <h3 style={{ margin: '0 0 10px 0', flexShrink: 0 }}>Recomendación Semanal</h3>
           <StatsInterface userId={userId} />
         </div>
       </div>

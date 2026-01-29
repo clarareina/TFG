@@ -34,9 +34,9 @@ const UpcomingEvents = ({ userId }: EventsProps) => {
 
         try {
             const res = await fetch(`${API_BASE_URL}/api/calendar/events?user_id=${userId}`)
-            
+
             if (!res.ok) throw new Error("Error al cargar eventos")
-            
+
             const data: CalendarEvent[] = await res.json()
 
             // PROCESAMIENTO DE DATOS 
@@ -85,13 +85,15 @@ const UpcomingEvents = ({ userId }: EventsProps) => {
     }, [userId])
 
     const formatDate = (evt: CalendarEvent) => {
-        const date = new Date(evt.start.dateTime || evt.start.date || '')
+        const startDate = new Date(evt.start.dateTime || evt.start.date || '')
         const options: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short' }
-        const dateStr = date.toLocaleDateString('es-ES', options)
+        const dateStr = startDate.toLocaleDateString('es-ES', options)
 
-        if (evt.start.dateTime) {
-            const timeStr = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-            return `${dateStr} · ${timeStr}`
+        if (evt.start.dateTime && evt.end.dateTime) {
+            const startTime = startDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+            const endDate = new Date(evt.end.dateTime)
+            const endTime = endDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+            return `${dateStr} · ${startTime} - ${endTime}`
         }
         return `${dateStr} · Todo el día`
     }
