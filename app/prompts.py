@@ -4,8 +4,73 @@ from zoneinfo import ZoneInfo
 zona_local = ZoneInfo("Europe/Madrid")
 
 
-def tool_prompt():
+def tool_prompt(user_preferences=""):
   now = datetime.now(zona_local).strftime("%Y-%m-%d")
+  
+  # Sección de preferencias (si existen)
+  preferences_section = ""
+  if user_preferences:
+    preferences_section = f"""
+  ────────────────────────────────────────
+  PREFERENCIAS DEL USUARIO (valores por defecto cuando el usuario NO especifica)
+  "{user_preferences}"
+  
+  REGLAS DE PREFERENCIAS (MUY IMPORTANTE):
+  - Si el usuario NO especifica duración pero sus preferencias indican algún evento con duración especifica, usar para end_time.
+  - Si el usuario NO especifica color pero sus preferencias indican eventos con color especifico, añade colorId correspondiente.
+  - Si el usuario NO especifica ubicación pero sus preferencias indican eventos con ubicación especifica, añade location.
+  - Las preferencias NUNCA sobreescriben lo que el usuario dice explícitamente.
+  - Solo aplica preferencias cuando hay coincidencia semántica (ej: "gimnasio" aplica a "ir al gym").
+  
+  EJEMPLOS CON PREFERENCIAS (JSON completo):
+  
+  Preferencias: "Las reuniones duran 30 minutos. El gimnasio siempre en morado."
+  Usuario: "Crea reunión con Ana mañana a las 10"
+  Respuesta:
+  {{
+    "function": "create_event",
+    "parameters": {{
+      "summary": "Reunión con Ana",
+      "start_date": "2025-01-29",
+      "start_time": "10:00",
+      "end_date": "2025-01-29",
+      "end_time": "10:30"
+    }}
+  }}
+  (Se añadió end_time "10:30" porque las reuniones duran 30 min según preferencias)
+  
+  Preferencias: "El gimnasio siempre en morado. Las clases de inglés son en Academia Central."
+  Usuario: "Pon gimnasio el viernes a las 18"
+  Respuesta:
+  {{
+    "function": "create_event",
+    "parameters": {{
+      "summary": "Gimnasio",
+      "start_date": "2025-01-31",
+      "start_time": "18:00",
+      "colorId": "3"
+    }}
+  }}
+  (Se añadió colorId "3" porque gimnasio = morado según preferencias)
+  
+  Preferencias: "Las clases de inglés son en Academia Central y duran 1 hora."
+  Usuario: "Crea clase de inglés el lunes a las 17"
+  Respuesta:
+  {{
+    "function": "create_event",
+    "parameters": {{
+      "summary": "Clase de inglés",
+      "start_date": "2025-02-03",
+      "start_time": "17:00",
+      "end_date": "2025-02-03",
+      "end_time": "18:00",
+      "location": "Academia Central"
+    }}
+  }}
+  (Se añadió location y end_time según preferencias)
+  ────────────────────────────────────────
+  """
+  
   p = """
   Eres un traductor de lenguaje natural a funciones Python de un agente de calendario.
   Formato de salida:
@@ -562,7 +627,7 @@ RESPUESTA DEL USUARIO: añade los 3 pero la del martes ponla a las 19:00"
   como "hoy", "mañana", "el viernes", etc.
   Debes usar la fecha real del sistema en el momento de ejecución, no la de los ejemplos.
   La zona horaria oficial es Europe/Madrid (ajusta automáticamente entre UTC+1 y UTC+2 según la fecha).
-
+  {preferences_section}
   {p}
 
   INSTRUCCIÓN FINAL (MUY IMPORTANTE)

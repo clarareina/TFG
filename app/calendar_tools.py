@@ -674,78 +674,89 @@ def _clean_body_for_restore(body: Dict[str, Any]) -> Dict[str, Any]:
     return clean_body
 
 
-def undo_last_action(user_id: str, action_to_undo: UndoableAction):
+def undo_last_action(user_id: str, action_to_undo):
+    """
+    Deshace la(s) última(s) acción(es) ejecutadas.
+    Ahora soporta tanto una acción individual como una lista de acciones.
+    """
     if not action_to_undo:
         return {
             "response": "No hay ninguna acción reciente que deshacer.",
             "undo_info": None
         }
+    
+    # Convertir a lista si es un solo elemento (compatibilidad)
+    if isinstance(action_to_undo, dict):
+        actions_list = [action_to_undo]
+    else:
+        actions_list = list(action_to_undo)
+    
+    # Invertir orden: deshacer último primero
+    actions_list = list(reversed(actions_list))
+    
+    messages = []
+    total_undone = 0
+    
+    for action in actions_list:
+        operation = action.get('operation')
+        event_id = action.get('eventId')
+        calendar_id = action.get('calendarId')
+        
+        try:
+            if operation == "create_event":
+                get_calendar_service(user_id).events().delete(
+                    calendarId=calendar_id,
+                    eventId=event_id
+                ).execute()
+                total_undone += 1
 
-    operation = action_to_undo['operation'] 
-    event_id = action_to_undo['eventId']
-    calendar_id = action_to_undo['calendarId']
+            elif operation == "delete_event":
+                body_to_restore = _clean_body_for_restore(action.get('previous_body'))
+                get_calendar_service(user_id).events().insert(
+                    calendarId=calendar_id,
+                    body=body_to_restore
+                ).execute()
+                total_undone += 1
 
-    try:    
-        if operation == "create_event": 
-            get_calendar_service(user_id).events().delete(
-                calendarId=calendar_id,
-                eventId=event_id
-            ).execute()
-            message = "Acción deshecha: El evento que se creó ha sido eliminado."
+            elif operation == "patch_event":
+                body_to_restore = _clean_body_for_restore(action.get('previous_body'))
+                get_calendar_service(user_id).events().update(
+                    calendarId=calendar_id,
+                    eventId=event_id,
+                    body=body_to_restore
+                ).execute()
+                total_undone += 1
 
-        elif operation == "delete_event":
-            body_to_restore = _clean_body_for_restore(action_to_undo['previous_body'])
-            get_calendar_service(user_id).events().insert(
-                calendarId=calendar_id,
-                body=body_to_restore
-            ).execute()
-            summary = body_to_restore.get('summary', event_id)
-            message = f"Acción deshecha: El evento '{summary}' ha sido restaurado."
+            elif operation == "delete_date_events":
+                # Restaurar todos los eventos eliminados
+                previous_bodies = action.get('previous_bodies', [])
+                for body in previous_bodies:
+                    try:
+                        body_to_restore = _clean_body_for_restore(body)
+                        get_calendar_service(user_id).events().insert(
+                            calendarId=calendar_id,
+                            body=body_to_restore
+                        ).execute()
+                        total_undone += 1
+                    except Exception as e:
+                        print(f"[undo_last_action] Error restaurando evento: {e}")
 
-        elif operation == "patch_event":
-            body_to_restore = _clean_body_for_restore(action_to_undo['previous_body'])
-            get_calendar_service(user_id).events().update(
-                calendarId=calendar_id,
-                eventId=event_id,
-                body=body_to_restore
-            ).execute()
-            summary = body_to_restore.get('summary', event_id)
-            message = f"Acción deshecha: El evento '{summary}' ha vuelto a su estado anterior."
-
-        elif operation == "delete_date_events":
-            # Restaurar todos los eventos eliminados
-            previous_bodies = action_to_undo.get('previous_bodies', [])
-            restored_count = 0
-            for body in previous_bodies:
-                try:
-                    body_to_restore = _clean_body_for_restore(body)
-                    get_calendar_service(user_id).events().insert(
-                        calendarId=calendar_id,
-                        body=body_to_restore
-                    ).execute()
-                    restored_count += 1
-                except Exception as e:
-                    print(f"[undo_last_action] Error restaurando evento: {e}")
-            
-            if restored_count == 1:
-                message = "Acción deshecha: Se ha restaurado 1 evento."
-            else:
-                message = f"Acción deshecha: Se han restaurado {restored_count} eventos."
-
-        else:
-            message = f"Operación de undo no reconocida: {operation}"
-
-        return {
-            "response": message,
-            "undo_info": None 
-        }
-
-    except Exception as e:
-        print(f"[undo_last_action] Error técnico: {e}")
-        return {
-            "response": "Lo siento, no pude deshacer la acción. Es posible que el evento ya haya sido modificado.",
-            "undo_info": action_to_undo 
-        }
+        except Exception as e:
+            print(f"[undo_last_action] Error técnico deshaciendo {operation}: {e}")
+            messages.append(f"Error deshaciendo una acción")
+    
+    # Generar mensaje final
+    if total_undone == 0:
+        final_message = "No se pudo deshacer ninguna acción."
+    elif total_undone == 1:
+        final_message = "Acción deshecha correctamente."
+    else:
+        final_message = f"Se han deshecho {total_undone} acciones correctamente."
+    
+    return {
+        "response": final_message,
+        "undo_info": None
+    }
     
 
 def find_free_slots(user_id: str, duration=None, datetime_min=None, datetime_max=None, calendar_id="primary"):

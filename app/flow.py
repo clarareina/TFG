@@ -2,31 +2,77 @@ from app.nodes import app
 from langgraph.types import Command
 import sqlite3
 
+
 def _clear_user_state(user_id: str):
-    """Borra el estado del usuario de la BD para empezar de cero."""
+    """
+    Borra el estado del usuario de la BD para empezar de cero.
+    Se usa cuando hay errores o cuando la reanudación falla.
+    """
     try:
-        # thread_id único por usuario
         thread_id = f"conversation_{user_id}"
         conn = sqlite3.connect("checkpoints.db", check_same_thread=False)
         cursor = conn.cursor()
         
-        # Eliminamos los checkpoints (el historial de estados de LangGraph)
+        # Eliminamos los checkpoints (historial de estados de LangGraph)
         cursor.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
         try:
-            # Eliminamos escrituras pendientes si existen
             cursor.execute("DELETE FROM writes WHERE thread_id = ?", (thread_id,))
         except:
             pass
         
         conn.commit()
         conn.close()
-        print(f"[Flow] Estado limpiado para {user_id}")
     except Exception as e:
         print(f"[Flow] Error limpiando estado: {e}")
 
-def _run_new_flow(user_input: str, user_id: str, config: dict, user_preferences: str, conversation_history: list = None) -> dict:
-    """Ejecuta el flujo desde el principio."""
+
+# MAPEO DE NODOS A MENSAJES DE PROGRESO
+NODE_MESSAGES = {
+    "router": "Analizando...",
+    "tool_interpreter": "Interpretando petición...",
+    "reasoning_interpreter": "Procesando petición...",
+    "verifier": "Verificando conflictos...",
+    "tool_executor": "Ejecutando acción...",
+    "reasoning_executor": "Obteniendo datos del calendario...",
+    "proposer": "Buscando huecos libres...",
+    "analysis": "Analizando resultados...",
+    "chat": "Pensando...",
+    # "get_user_decision": "Esperando tu respuesta...",
+    "process_user_decision": "Procesando...",
+    "confirmer": "Finalizando..."
+}
+
+
+def run_agent(user_input: str, user_id: str, user_preferences: str = "", conversation_history: list = None):
+    """
+    FUNCIÓN PRINCIPAL DEL AGENTE (generador con streaming).
     
+    Ejecuta el grafo de LangGraph y EMITE actualizaciones de progreso
+    mientras procesa cada nodo. Maneja tanto conversaciones nuevas como
+    reanudación de conversaciones pausadas (human-in-the-loop).
+    
+    ARGUMENTOS:
+        user_input: El mensaje del usuario
+        user_id: Email del usuario (identificador único)
+        user_preferences: Preferencias guardadas del usuario (opcional)
+        conversation_history: Últimos mensajes de la conversación (opcional)
+    
+    YIELDS (emite):
+        {"type": "progress", "message": "..."} → Mensaje de progreso para mostrar
+        {"type": "response", "data": {...}}   → Respuesta final del agente
+    
+    USO:
+        for update in run_agent(...):
+            if update["type"] == "progress":
+                print(update["message"])  # "Analizando..."
+            elif update["type"] == "response":
+                result = update["data"]   # {"status": "complete", "response": "..."}
+    """
+    
+    # Configuración del thread (cada usuario tiene su propia conversación)
+    config = {"configurable": {"thread_id": f"conversation_{user_id}"}}
+    
+    # Inputs iniciales para el grafo
     inputs = {
         "input_user": user_input, 
         "user_id": user_id, 
@@ -34,71 +80,121 @@ def _run_new_flow(user_input: str, user_id: str, config: dict, user_preferences:
         "conversation_history": conversation_history or []
     }
     
-    result = None
-    
-    # app.stream ejecuta el grafo paso a paso
-    for event in app.stream(inputs, config=config):
-        
-        # Interrupción (Human-in-the-loop)
-        # Si el grafo se detiene capturamos el evento
-        if "__interrupt__" in event:
-            interrupt_data = event["__interrupt__"][0].value
-            return {
-                "status": "waiting", # Indicamos al frontend que esperamos respuesta
-                "response": interrupt_data.get("response", "Elige una opción:"),
-                "suggested_slots": interrupt_data.get("suggested_slots", [])
-            }
-        
-        # Si llegamos al nodo final (confirmer), capturamos la respuesta.
-        if "confirmer" in event:
-            result = event["confirmer"].get("final_response")
-    
-    return {"status": "complete", "response": result or "No pude procesar tu mensaje. Por favor, inténtalo de nuevo."}
-
-def run_agent(user_input: str, user_id: str, user_preferences: str = "", conversation_history: list = None) -> dict:
-    """
-    Ejecuta el agente gestionando pausas y reanudaciones.
-    Si la reanudación falla, limpia el estado y procesa como nueva conversación.
-    """
-    config = {"configurable": {"thread_id": f"conversation_{user_id}"}}
-    
-    # Obtenemos el estado actual desde la base de datos (checkpoints)
+    # DETECTAR SI HAY QUE REANUDAR UNA CONVERSACIÓN PAUSADA
     state = app.get_state(config)
     
-    # 1. LOGICA DE REANUDACIÓN
-    # Si tiene valor, el grafo se quedó "pausado" en un nodo anterior esperando input del usuario 
-    if state.next: 
+    # Si state.next tiene valor, significa que el grafo está pausado esperando
+    # respuesta del usuario (human-in-the-loop). En ese caso, reanudamos.
+    if state.next:
+        stream_input = Command(resume=user_input)  # Reanudar con la respuesta del usuario
+    else:
+        stream_input = inputs  # Conversación nueva
+    
+    # EJECUTAR EL GRAFO Y EMITIR ACTUALIZACIONES
+    try:
+        result_found = False
         
-        try:
-            result = None
-            # Command(resume=...) para decirle al grafo: "Aquí tienes la respuesta que esperabas, continúa".
-            for event in app.stream(Command(resume=user_input), config=config):
+        # app.stream() ejecuta el grafo paso a paso
+        for action in app.stream(stream_input, config=config):
+            
+            # 'action' es un diccionario donde la KEY es el nombre del nodo
+            # que acaba de ejecutarse. Ejemplo: {"router": {...}}
+            
+            for node_name in action.keys():
                 
-                # si vuelve a interrumpirse 
-                if "__interrupt__" in event:
-                    interrupt_data = event["__interrupt__"][0].value
-                    return {
+                # 1. EMITIR MENSAJE DE PROGRESO
+                # Si el nodo tiene un mensaje amigable configurado, lo enviamos
+                if node_name in NODE_MESSAGES:
+                    yield {
+                        "type": "progress",
+                        "message": NODE_MESSAGES[node_name]
+                    }
+                
+                # 2. DETECTAR INTERRUPCIÓN (human-in-the-loop)
+                # El grafo se pausa y espera que el usuario elija una opción
+                if node_name == "__interrupt__":
+                    interrupt_data = action["__interrupt__"][0].value
+                    yield {
+                        "type": "response",
+                        "data": {
+                            "status": "waiting",
+                            "response": interrupt_data.get("response", "Elige una opción:"),
+                            "suggested_slots": interrupt_data.get("suggested_slots", [])
+                        }
+                    }
+                    result_found = True
+                    return  # Terminar el generador, esperamos respuesta
+                
+                # 3. DETECTAR RESPUESTA FINAL
+                # El grafo llegó al nodo final (confirmer)
+                if node_name == "confirmer":
+                    final_response = action["confirmer"].get("final_response")
+                    yield {
+                        "type": "response",
+                        "data": {
+                            "status": "complete",
+                            "response": final_response or "No pude procesar tu mensaje."
+                        }
+                    }
+                    result_found = True
+                    return  # Terminar el generador
+        
+        # Si el grafo terminó pero no encontramos respuesta válida
+        if not result_found:
+            # Esto puede pasar si reanudamos pero el grafo no devolvió nada útil
+            _clear_user_state(user_id)
+            
+            # Reintentar como conversación nueva
+            for update in _run_fresh(inputs, config):
+                yield update
+    
+    except Exception as e:
+        # Si hay cualquier error, limpiamos el estado e intentamos de nuevo
+        _clear_user_state(user_id)
+        
+        # Reintentar como conversación nueva
+        try:
+            for update in _run_fresh(inputs, config):
+                yield update
+        except Exception as e2:
+            # Si sigue fallando, emitir error
+            yield {
+                "type": "response",
+                "data": {
+                    "status": "error",
+                    "response": "Ha ocurrido un error. Por favor, inténtalo de nuevo."
+                }
+            }
+
+
+def _run_fresh(inputs: dict, config: dict):
+    """
+    Helper interno: Ejecuta el grafo desde cero (sin estado previo).
+    Se usa cuando la reanudación falla o hay errores.
+    """
+    for action in app.stream(inputs, config=config):
+        for node_name in action.keys():
+            if node_name in NODE_MESSAGES:
+                yield {"type": "progress", "message": NODE_MESSAGES[node_name]}
+            
+            if node_name == "__interrupt__":
+                interrupt_data = action["__interrupt__"][0].value
+                yield {
+                    "type": "response",
+                    "data": {
                         "status": "waiting",
                         "response": interrupt_data.get("response", "Elige una opción:"),
                         "suggested_slots": interrupt_data.get("suggested_slots", [])
                     }
-                
-                if "confirmer" in event:
-                    result = event["confirmer"].get("final_response")
+                }
+                return
             
-            if result:
-                return {"status": "complete", "response": result}
-            else:
-                #Fallo en reanudación
-                # Si reanudamos pero el grafo no devolvió nada útil borramos todo y tratamos el mensaje como si fuera nuevo.
-                _clear_user_state(user_id)
-                return _run_new_flow(user_input, user_id, config, user_preferences, conversation_history)
-                
-        except Exception as e:
-            _clear_user_state(user_id)
-            return _run_new_flow(user_input, user_id, config, user_preferences, conversation_history)
-    
-    # 2. LOGICA DE INICIO NUEVO
-    # Si no había estado pendiente, es una conversación normal.
-    else:
-        return _run_new_flow(user_input, user_id, config, user_preferences, conversation_history)
+            if node_name == "confirmer":
+                yield {
+                    "type": "response",
+                    "data": {
+                        "status": "complete",
+                        "response": action["confirmer"].get("final_response") or "No pude procesar tu mensaje."
+                    }
+                }
+                return

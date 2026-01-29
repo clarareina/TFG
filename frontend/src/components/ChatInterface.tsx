@@ -35,6 +35,9 @@ const ChatInterface = ({ userId }: ChatProps) => {
 
   useEffect(scrollToBottom, [messages])
 
+  // Estado para el mensaje de carga dinámico
+  const [loadingMessage, setLoadingMessage] = useState("Pensando...")
+
   const handleSend = async () => {
     if (!input.trim() || !userId) return
 
@@ -45,8 +48,11 @@ const ChatInterface = ({ userId }: ChatProps) => {
     const userMsg: Message = { id: Date.now(), text: userText, sender: 'user' }
     setMessages(prev => [...prev, userMsg])
     setIsLoading(true)
+    setLoadingMessage("Pensando...") // Mensaje inicial
 
     try {
+      // STREAMING CON SERVER-SENT EVENTS (SSE)
+      // En lugar de esperar toda la respuesta, recibimos actualizaciones
       const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -57,22 +63,63 @@ const ChatInterface = ({ userId }: ChatProps) => {
       })
 
       if (!response.ok) throw new Error('Error en el servidor')
+      if (!response.body) throw new Error('No hay body en la respuesta')
 
-      const data = await response.json()
+      // Leer el stream de respuestas
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let finalData: { status?: string; response?: string } | null = null
 
-      // 3. Mostrar respuesta del Bot
-      const botMsg: Message = {
-        id: Date.now() + 1,
-        text: data.response,
-        sender: 'bot'
+      // Bucle para leer cada chunk del stream
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        // Decodificar el chunk de bytes a texto
+        const text = decoder.decode(value)
+
+        // Puede haber múltiples líneas "data: {...}" en un chunk
+        const lines = text.split('\n').filter(line => line.startsWith('data: '))
+
+        for (const line of lines) {
+          try {
+            // Parsear el JSON (quitar "data: " del inicio)
+            const jsonStr = line.replace('data: ', '')
+            const update = JSON.parse(jsonStr)
+
+            if (update.type === 'progress') {
+              // Actualizar el mensaje de carga con el progreso actual
+              setLoadingMessage(update.message)
+            } else if (update.type === 'response') {
+              // Respuesta final del agente
+              finalData = update.data
+            }
+          } catch (e) {
+            // Ignorar líneas que no son JSON válido
+          }
+        }
       }
-      setMessages(prev => [...prev, botMsg])
 
-      // 4. Actualizar el calendario SOLO si el asistente hizo cambios
-      if (data.calendar_modified) {
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('calendarUpdated', { bubbles: true }))
-        }, 100)
+      // Mostrar la respuesta del bot
+      if (finalData) {
+        const botMsg: Message = {
+          id: Date.now() + 1,
+          text: finalData.response || 'Sin respuesta',
+          sender: 'bot'
+        }
+        setMessages(prev => [...prev, botMsg])
+
+        // Detectar si hubo modificación del calendario
+        const resultStr = (finalData.response || '').toLowerCase()
+        const calendarModified = ['creado', 'eliminado', 'modificado', 'actualizado', 'duplicado', 'deshecha'].some(
+          keyword => resultStr.includes(keyword)
+        )
+
+        if (calendarModified) {
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('calendarUpdated', { bubbles: true }))
+          }, 100)
+        }
       }
 
     } catch (error) {
@@ -85,6 +132,7 @@ const ChatInterface = ({ userId }: ChatProps) => {
       setMessages(prev => [...prev, errorMsg])
     } finally {
       setIsLoading(false)
+      setLoadingMessage("Pensando...") // Reset para la próxima vez
     }
   }
 
@@ -170,7 +218,7 @@ const ChatInterface = ({ userId }: ChatProps) => {
 
         {isLoading && (
           <div className="message-bubble bot" style={{ opacity: 0.7 }}>
-            Pensando...
+            {loadingMessage}
           </div>
         )}
         <div ref={messagesEndRef} />

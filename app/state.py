@@ -34,7 +34,7 @@ class AgentState(TypedDict):
     api_response_list: Optional[List[Any]]   # La respuesta de Calendar 
     final_response: Optional[str]
     error_message: Optional[str]
-    last_undoable_action: Optional[UndoableAction] # La última acción que podemos deshacer
+    last_undoable_action: Optional[List[UndoableAction]] # Lista de acciones que podemos deshacer
     verification_result: Optional[VerificationResult] # Resultado de la comprobación
     pending_action: Optional[Dict[str, Any]]   # Almacena la acción que causó el conflicto
     suggested_slots: Optional[List[Dict[str, str]]]  # Almacena las sugerencias (ej. [{'start': ..., 'end': ...}])

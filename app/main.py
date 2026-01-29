@@ -6,7 +6,6 @@ from datetime import datetime, timezone, timedelta
 from contextlib import asynccontextmanager
 from app.auth import get_calendar_service, startup_check_all_sessions
 from app.database import init_db
-from app.flow import run_agent
 from zoneinfo import ZoneInfo
 from app.database import SessionLocal, User
 from app.stats import calculate_time_analytics
@@ -116,30 +115,30 @@ def login(user_id: str = Query(..., description="Email del usuario")):
     except Exception:
         return {"status": "error", "message": "Requiere login"}
 
-@app.post("/api/reset")
-def reset_user_conversation(user_id: str = Query(..., description="Email del usuario")):
-    """
-    Resetea el estado de la conversación del usuario.
-    Útil cuando el agente se queda pillado esperando una respuesta.
-    """
-    import sqlite3
-    try:
-        thread_id = f"conversation_{user_id}"
-        conn = sqlite3.connect("checkpoints.db")
-        cursor = conn.cursor()
-        # Eliminar checkpoints de este usuario
-        cursor.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
-        # También eliminar writes si existe la tabla
-        try:
-            cursor.execute("DELETE FROM writes WHERE thread_id = ?", (thread_id,))
-        except:
-            pass
-        conn.commit()
-        conn.close()
-        return {"status": "success", "message": "Conversación reseteada. Puedes empezar de nuevo."}
-    except Exception as e:
-        print(f"[Reset Error] {e}")
-        return {"status": "error", "message": "No se pudo resetear la conversación."}
+# @app.post("/api/reset")
+# def reset_user_conversation(user_id: str = Query(..., description="Email del usuario")):
+#     """
+#     Resetea el estado de la conversación del usuario.
+#     Útil cuando el agente se queda pillado esperando una respuesta.
+#     """
+#     import sqlite3
+#     try:
+#         thread_id = f"conversation_{user_id}"
+#         conn = sqlite3.connect("checkpoints.db")
+#         cursor = conn.cursor()
+#         # Eliminar checkpoints de este usuario
+#         cursor.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
+#         # También eliminar writes si existe la tabla
+#         try:
+#             cursor.execute("DELETE FROM writes WHERE thread_id = ?", (thread_id,))
+#         except:
+#             pass
+#         conn.commit()
+#         conn.close()
+#         return {"status": "success", "message": "Conversación reseteada. Puedes empezar de nuevo."}
+#     except Exception as e:
+#         print(f"[Reset Error] {e}")
+#         return {"status": "error", "message": "No se pudo resetear la conversación."}
 
 
 # Endpoint para GUARDAR preferencias
@@ -167,86 +166,83 @@ def get_preferences(user_id: str = Query(...)):
     return {"preferences": user.preferences or ""}
 
 
-@app.post("/api/chat", response_model=AgentResponse)
+# ============================================================================
+# ENDPOINT PRINCIPAL DEL CHAT (con streaming SSE)
+# ============================================================================
+from fastapi.responses import StreamingResponse
+from app.flow import run_agent
+
+@app.post("/api/chat")
 async def chat_endpoint(request: UserRequest):
     """
-    1. Recibe el texto del usuario.
-    2. Se lo pasa al Agente.
-    3. Devuelve la respuesta o pide más información.
+    ENDPOINT PRINCIPAL DEL AGENTE con streaming en tiempo real.
+    
+    Usa Server-Sent Events (SSE) para enviar actualizaciones de progreso:
+    - "Analizando petición..."
+    - "Verificando conflictos..."
+    - "Ejecutando acción..."
+    - Respuesta final
+    
+    El frontend recibe estos mensajes uno a uno mientras el agente trabaja.
     """
-    try:
-        # Recuperamos las preferencias y el historial de la BD
+    
+    async def generate():
+        """
+        Generador asíncrono que emite mensajes SSE.
+        Formato SSE: "data: {json}\n\n"
+        """
+        # Obtener preferencias del usuario de la BD
         db = SessionLocal()
         user = db.query(User).filter(User.email == request.user_id).first()
         user_prefs = user.preferences if user and user.preferences else ""
         
-        # Cargar historial de conversación (JSON -> lista)
+        # Cargar historial de conversación
         conversation_history = []
         if user and user.conversation_history:
             try:
                 conversation_history = json.loads(user.conversation_history)
             except:
                 conversation_history = []
-        
         db.close()
         
-        agent_result = run_agent(
+        # Iterar sobre las actualizaciones del agente (streaming)
+        final_result = None
+        for update in run_agent(
             request.query, 
             request.user_id, 
             user_preferences=user_prefs,
             conversation_history=conversation_history
-        ) 
+        ):
+            # Convertir a formato SSE: "data: {...}\n\n"
+            yield f"data: {json.dumps(update, ensure_ascii=False)}\n\n"
+            
+            # Guardar la respuesta final para logging
+            if update.get("type") == "response":
+                final_result = update.get("data", {})
         
-        # Protección contra resultado None
-        if agent_result is None:
-            return AgentResponse(
-                status="error",
-                response="No se pudo procesar la solicitud. Inténtalo de nuevo."
-            )
-        
-        # Guarda la conversación en un archivo
-        registrar_log(request.user_id, request.query, agent_result)
-
-        # Limpia la respuesta para enviarla al frontend
-        result = (
-            agent_result.get("response") or 
-            agent_result.get("message") or 
-            agent_result.get("messages") or 
-            "Sin respuesta."
-        )
-        
-        # Actualizar historial de conversación en la BD (mantener últimos 6 mensajes = 3 turnos)
-        db = SessionLocal()
-        user = db.query(User).filter(User.email == request.user_id).first()
-        if user:
-            conversation_history.append({"role": "user", "content": request.query})
-            conversation_history.append({"role": "assistant", "content": str(result)})
-            # Mantener solo los últimos 6 mensajes (3 turnos de conversación)
-            conversation_history = conversation_history[-6:]
-            user.conversation_history = json.dumps(conversation_history, ensure_ascii=False)
-            db.commit()
-        db.close()
-
-        # Detectar si hubo modificación del calendario basándose en la respuesta
-        calendar_modified = False
-        result_str = str(result).lower()
-        if any(keyword in result_str for keyword in [
-            'creado', 'eliminado', 'modificado', 'actualizado', 'duplicado',
-            'acción deshecha', 'restaurado', 'he eliminado', 'se ha creado'
-        ]):
-            calendar_modified = True
-
-        return AgentResponse(
-            status=agent_result.get("status", "complete"),
-            response=str(result),
-            calendar_modified=calendar_modified
-        )
-
-    except Exception as e:
-        return AgentResponse(
-            status="error",
-            response="Lo siento, ha ocurrido un problema, intentalo de nuevo."
-        )
+        # Registrar en logs
+        if final_result:
+            registrar_log(request.user_id, request.query, final_result)
+            
+            # Actualizar historial de conversación en la BD
+            db = SessionLocal()
+            user = db.query(User).filter(User.email == request.user_id).first()
+            if user:
+                conversation_history.append({"role": "user", "content": request.query})
+                conversation_history.append({"role": "assistant", "content": str(final_result.get("response", ""))})
+                conversation_history = conversation_history[-6:]  # Últimos 3 turnos
+                user.conversation_history = json.dumps(conversation_history, ensure_ascii=False)
+                db.commit()
+            db.close()
+    
+    return StreamingResponse(
+        generate(), 
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
+    )
 
 
 @app.get("/api/calendar/events")

@@ -62,6 +62,13 @@ def router_node(state: AgentState) -> dict:
         print(f"[Router] (Chat)")
         return {"routing_decision": "chat"}
     
+    # PRIMERO: Detectar búsquedas/razonamiento (prioridad sobre acciones)
+    reasoning_keywords = ["busca", "hueco", "encuentra", "tengo", "resum", "dime", "estima", "crees", "idea", "tardar", "cualquier"]
+    if any(w in message for w in reasoning_keywords):
+        print(f"[Router] (Reasoning)")
+        return {"routing_decision": "reasoning"}
+    
+    # SEGUNDO: Detectar acciones directas (crear, borrar, etc)
     strong_tool_keywords = [
         "crea", "borra", "elimina", "agenda", "pon ", "quita", "modifica", "mueve" ,
         "cambia", "duplica", "cancela", "deshaz", "revierte", "muestra", "lista"]
@@ -70,11 +77,7 @@ def router_node(state: AgentState) -> dict:
         print(f"[Router] (Tool)")
         return {"routing_decision": "tool_use"}
     
-    if any(w in message for w in ["busca", "crees", "idea", "encuentra", "tardar", "hueco", "tengo", "resum", "dime", "cualquier", "estima"]):
-        print(f"[Router] (Reasoning)")
-        return {"routing_decision": "reasoning"}
-    
-    print(f"[Router] (Chat)")
+    print(f"[Router] (Chat - fallback to LLM)")
 
     
     classification_prompt = f"""
@@ -116,6 +119,7 @@ def tool_interpreter(state: dict) -> dict:
     """Envía el prompt al modelo Gemini y devuelve la estructura JSON de acciones."""
     user_input = state['input_user']
     conversation_history = state.get('conversation_history', [])
+    user_preferences = state.get('user_preferences', '')
     
     # Construir contexto de conversación reciente
     history_context = ""
@@ -125,7 +129,7 @@ def tool_interpreter(state: dict) -> dict:
             role = "Usuario" if msg.get("role") == "user" else "Asistente"
             history_context += f"{role}: {msg.get('content', '')}\n"
     
-    prompt_final = f"{tool_prompt()}{history_context}\n\nUsuario: {user_input}\n"
+    prompt_final = f"{tool_prompt(user_preferences)}{history_context}\n\nUsuario: {user_input}\n"
     response_text = generar_respuesta(prompt_final)
     json_object = interpret_response_json(response_text)
 
@@ -143,9 +147,16 @@ def reasoning_interpreter(state: dict) -> dict:
     user_input = state['input_user']
     conversation_history = state.get('conversation_history', [])
     
-    # Construir contexto de conversación reciente
+    # Palabras que indican referencia a conversación anterior
+    reference_words = ["eso", "lo mismo", "añade", "ponlo", "agéndalo", "créalo", "la primera", "la segunda", "el primero", "el segundo", "sí", "ok", "vale"]
+    message_lower = user_input.lower()
+    
+    # Solo usar historial si hay palabras de referencia Y NO es una nueva búsqueda
+    needs_history = any(w in message_lower for w in reference_words) and "busca" not in message_lower
+    
+    # Construir contexto de conversación reciente SOLO si es necesario
     history_context = ""
-    if conversation_history:
+    if conversation_history and needs_history:
         history_context = "\n\nCONTEXTO DE CONVERSACIÓN RECIENTE (para entender referencias como 'eso', 'lo mismo', etc.):\n"
         for msg in conversation_history:
             role = "Usuario" if msg.get("role") == "user" else "Asistente"
@@ -184,9 +195,12 @@ def reasoning_interpreter(state: dict) -> dict:
 def tool_executor(state: AgentState) -> dict:
     """Ejecuta las acciones indicadas en el JSON interpretado."""
     action_list = state.get('structured_json_list', [])
-    current_undo_state = state.get('last_undoable_action')
+    current_undo_list = state.get('last_undoable_action') or []  # Lista existente o nueva
     current_user_id = state.get('user_id')
     execution_results = []
+    
+    # Lista para acumular las acciones de esta ejecución
+    new_undo_actions = []
 
     for action in action_list:
         function_name = action.get("function")
@@ -198,25 +212,31 @@ def tool_executor(state: AgentState) -> dict:
 
             if function_name == "undo_last_action":
                 parameters = {
-                    "action_to_undo": current_undo_state, 
+                    "action_to_undo": current_undo_list,  # Ahora pasa la lista completa
                     "user_id": current_user_id
                 }
-                
+                # Limpiar la lista después de deshacer
+                new_undo_actions = []
+                current_undo_list = []
 
             action_result = actual_function(**parameters)
             if isinstance(action_result, dict):
                 response_str = action_result.get("response", "Acción completada.")
                 new_undo_info = action_result.get("undo_info") 
                 execution_results.append(response_str)
-                current_undo_state = new_undo_info
+                
+                # Acumular en lista si hay undo_info
+                if new_undo_info:
+                    new_undo_actions.append(new_undo_info)
             else:
                 execution_results.append(str(action_result))
        
         else:
             execution_results.append(f"Error: función {function_name} no encontrada.")
+    
     return {
         "api_response_list": execution_results,
-        "last_undoable_action": current_undo_state
+        "last_undoable_action": new_undo_actions if new_undo_actions else None
     }
 
 def reasoning_executor(state: dict) -> dict:
@@ -586,28 +606,7 @@ def propose_node(state:AgentState) -> dict:
     prompt = proposer_prompt(user_query, raw_data_str, conflict_info)     # busca los mejores huecos
     response_text = generar_respuesta(prompt).strip()
     
-    # Preparar 'suggested_slots' 
-    suggestions = []
-    if free_slots:
-        for gap in free_slots:
-            if len(suggestions) >= 5:
-                break
-            current_time = datetime.fromisoformat(gap['start'])
-            gap_end = datetime.fromisoformat(gap['end'])
-
-            while ((current_time + duration) <= gap_end):
-                if len(suggestions) >= 5:
-                    break
-                slot_end = current_time + duration
-                # Filtramos para mostrar solo horas razonables (8:00 - 20:00)
-                if ((8 <= current_time.hour < 20) and (8 <= slot_end.hour <= 20)):
-                    suggestions.append({
-                        "start": current_time.isoformat(),
-                        "end": slot_end.isoformat()
-                    })
-                current_time = slot_end
-
-    return {"api_response_list": [response_text], "suggested_slots": suggestions}
+    return {"api_response_list": [response_text], "suggested_slots": []}
 
 
 # def propose_node_OLD(state:AgentState) -> dict:
@@ -727,13 +726,20 @@ def process_user_decision(state: AgentState) -> dict:
     
     Objetivo: Convertir la elección del usuario en una instrucción
     completa que el LLM pueda entender para reintentar la acción.
+    
+    IMPORTANTE: Detecta si el usuario hace una NUEVA PETICIÓN en lugar de
+    responder a las opciones presentadas. Si es nueva petición, se redirige
+    al router para procesarla desde cero.
     """
     user_choice = state.get("user_choice", '')  
     original_user_input = state.get("input_user", "")  
     llm_previous_response = state.get("api_response_list", [""])[0]
     pending_action = state.get("pending_action")
-
-    if user_choice.lower() == "cancelar":
+    
+    user_choice_lower = user_choice.lower().strip() if isinstance(user_choice, str) else ""
+    
+    # PRIMERO: Verificar comandos especiales (cancelar, forzar)
+    if user_choice_lower == "cancelar":
         return {
             "api_response_list": ["Acción cancelada"],
             "pending_action": None,
@@ -741,7 +747,7 @@ def process_user_decision(state: AgentState) -> dict:
             "verification_result": VerificationResult(conflict_found=False, conflicting_events=[])
         }
     
-    elif user_choice.lower() == "forzar" and pending_action:
+    if user_choice_lower == "forzar" and pending_action:
         return {
             "structured_json_list": [pending_action],  # Restauramos la acción original
             "pending_action": None,
@@ -749,19 +755,41 @@ def process_user_decision(state: AgentState) -> dict:
             "verification_result": VerificationResult(conflict_found=False, conflicting_events=[])
         }
     
-    else:
-        # Combinar los 3 mensajes para darle contexto completo al tool_interpreter:
-        combined_input = f"""PETICIÓN ORIGINAL DEL USUARIO: {original_user_input}
+    # SEGUNDO: Detectar si es una NUEVA PETICIÓN en lugar de respuesta a opciones
+    # Palabras clave que indican una nueva acción/petición (NO incluye "cancela" ni "forzar")
+    new_request_keywords = [
+        "busca", "crea", "borra", "elimina", "agenda", "pon ", "quita", "modifica", 
+        "mueve", "cambia", "duplica", "deshaz", "revierte", "muestra", 
+        "lista", "cuándo", "cuando", "qué tengo", "que tengo", "hay algún", "hay algun",
+        "dame", "dime", "encuentra", "tengo algo", "reunión", "reunion", "evento",
+        "hola", "buenos días", "buenas tardes"
+    ]
+    
+    # Si el mensaje parece una nueva petición (contiene palabras clave de acción)
+    has_new_request_keyword = any(kw in user_choice_lower for kw in new_request_keywords)
+    
+    if has_new_request_keyword:
+        return {
+            "input_user": user_choice,  # El mensaje original del usuario
+            "pending_action": None,
+            "api_response_list": [],
+            "structured_json_list": [],
+            "verification_result": VerificationResult(conflict_found=False, conflicting_events=[]),
+            "routing_decision": "new_request"  # Nueva ruta al router
+        }
+
+    # TERCERO: Es una respuesta a las opciones, combinar contexto
+    combined_input = f"""PETICIÓN ORIGINAL DEL USUARIO: {original_user_input}
 
 RESPUESTA DEL AGENTE: {llm_previous_response}
 
 RESPUESTA DEL USUARIO: {user_choice}"""
-        
-        return {
-            "input_user": combined_input,
-            "pending_action": None,
-            "routing_decision": "to_interpreter" # Forzamos re-interpretación
-        }
+    
+    return {
+        "input_user": combined_input,
+        "pending_action": None,
+        "routing_decision": "to_interpreter" # Forzamos re-interpretación
+    }
 
 
 def analysis_node(state: dict) -> dict:
@@ -876,11 +904,10 @@ workflow.add_edge("get_user_decision", "process_user_decision")
 workflow.add_conditional_edges("process_user_decision",
     lambda state: state.get("routing_decision"),
     {
-        "execute": "tool_executor", # (no se usa mucho aquí, solemos ir a interpreter)
         "end": "confirmer",         # Usuario canceló
-        "invalid_choice": "get_user_decision",
         "to_interpreter": "tool_interpreter",  # Combina respuestas y pasa a tool_interpreter para reintentar
-        "force_execute": "tool_executor"  # Forzar ejecución sin verificar conflictos
+        "force_execute": "tool_executor",  # Forzar ejecución sin verificar conflictos
+        "new_request": "router"     # NUEVO: Nueva petición, procesar desde cero
     }
 )
 
