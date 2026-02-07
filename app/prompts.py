@@ -86,6 +86,13 @@ def tool_prompt(user_preferences=""):
   1) create_event
   Crea un evento en Google Calendar.
   Parámetros: summary, start_date, end_date, start_time, end_time, description, location, attendees, colorId, recurrence, attachments, conference, source, default_reminder, reminder, zone, calendar_id, send_updates, visibility, transparency.
+  
+  IMPORTANTE sobre calendar_id (calendarios secundarios):
+  - Por defecto es "primary" (calendario principal del usuario).
+  - Si el usuario menciona un calendario específico (ej: "en el calendario de trabajo", "en mi calendario personal", "en el calendario compartido"), 
+    usa calendar_id con el nombre exacto que menciona el usuario.
+  - El valor puede ser el email del calendario o su nombre (ej: "trabajo@group.calendar.google.com" o simplemente el nombre que diga el usuario).
+  - Si el usuario dice "ponlo en trabajo" o "añádelo al calendario de trabajo", usa calendar_id: "trabajo".
 
   2) delete_event
   Elimina un evento existente en el calendario.
@@ -236,6 +243,29 @@ def tool_prompt(user_preferences=""):
   }
   }
 
+  Usuario: "Pon reunión de trabajo mañana a las 9 en el calendario de trabajo"
+  Respuesta:
+  {
+    "function": "create_event",
+    "parameters": {
+      "summary": "Reunión de trabajo",
+      "start_date": "2025-10-04",
+      "start_time": "09:00",
+      "calendar_id": "trabajo"
+    }
+  }
+
+  Usuario: "Añade cumpleaños de Ana al calendario personal"
+  Respuesta:
+  {
+    "function": "create_event",
+    "parameters": {
+      "summary": "Cumpleaños de Ana",
+      "start_date": "2025-10-15",
+      "calendar_id": "personal"
+    }
+  }
+
   Usuario: "Reunión con Ana mañana a las 10 en la oficina"
   #(en el ejemplo, hoy es 2025-10-03)
   Respuesta:
@@ -247,6 +277,30 @@ def tool_prompt(user_preferences=""):
       "start_time": "10:00",
       "location": "Oficina"
     }
+  }
+
+  Usuario: "Recuérdame que llame a Ana mañana a las 10"
+  #(en el ejemplo, hoy es 2025-10-03)
+  Respuesta:
+  {
+    "function": "create_event",
+    "parameters": {
+      "summary": "Llamar a Ana",
+      "start_date": "2025-10-04",
+      "start_time": "10:00"
+    }
+  }
+
+  Usuario: "Recuérdame que vaya al supermercado mañana a las 17"
+  #(en el ejemplo, hoy es 2025-10-03)
+  Respuesta:
+  {
+    "function": "create_event",
+    "parameters": {
+      "summary": "Ir al supermercado",
+      "start_date": "2025-10-04",
+      "start_time": "17:00"
+    }
   }
 
   Usuario: "Pon reunión con Laura mañana a las 9 e invita a Laura"
@@ -848,7 +902,7 @@ def analysis_prompt(function_name, raw_data_str, user_query, user_preferences=""
     3.**Formatear:** Convierte las fechas ISO a lenguaje natural amigable (ej: "Lunes 17 de 17:00 a 18:00").
     4.**Responder:** Presenta la opción u opciones elegidas.
         - Si la lista de datos está vacía, di claramente que no hay huecos en ese rango y sugiere ampliar la búsqueda.
-    Tu respuesta final (solo el texto para el usuario), no hables de enviar correo o avisar (en caso de ser compartido):
+    Tu respuesta final (solo el texto para el usuario), no hables de enviar correo o avisar (en caso de ser compartido), ni digas que vas a añadir o que has añadido el evento ya que no es tu función. 
     """
 
 
@@ -881,6 +935,8 @@ def analysis_prompt(function_name, raw_data_str, user_query, user_preferences=""
     4.  **Responder:** Respuesta natural y directa.
 
     -Entre cada evento debes intentar dejar 5 minutos de margen para cambio de contexto
+    
+    REGLA CRÍTICA: NUNCA digas que has agendado, creado, añadido o programado un evento. Eso NO es tu función. Solo puedes INFORMAR sobre lo que hay en el calendario.
 
     Tu respuesta final:
     """
@@ -906,15 +962,28 @@ def analysis_prompt(function_name, raw_data_str, user_query, user_preferences=""
     4.  **Responder:** Da una estimación directa (ej: "Suele tardar entre 45 y 60 minutos") y añade un pequeño consejo si aplica.
 
     -Entre cada evento debes intentar dejar 5 minutos de margen para cambio de contexto
-
+    no digas que vas a añadir o que has añadido el evento ya que no es tu función.
     Tu respuesta final:
     """
 
     # CASO POR DEFECTO
     else:
       prompt = f"""
-    Analiza los siguientes datos y responde a la petición del usuario de forma útil:
+    Analiza los siguientes datos y responde a la petición del usuario de forma útil.
+    
+    REGLAS CRÍTICAS:
+    1. SOLO usa la información que aparece en los datos. NO inventes eventos, horarios ni información que no esté explícitamente ahí.
+    2. Si los datos están vacíos o no contienen lo que el usuario pregunta, di claramente "No encontré información sobre X".
+    3. NO digas que has agendado, creado o añadido eventos - eso NO es tu función.
+    4. NO afirmes tener acceso a conversaciones pasadas si no tienes contexto.
+    
+    DATOS RECIBIDOS:
     {raw_data_str}
+    
+    PREGUNTA DEL USUARIO:
+    "{user_query}"
+    
+    Tu respuesta (basada SOLO en los datos anteriores):
     """
     return prompt
 
@@ -954,7 +1023,7 @@ def proposer_prompt(user_query: str, raw_data_str: str, conflict_info: str = "")
         - Al final, indica al usuario que puede elegir una opción
           * Escribir 'forzar' para crear el evento a pesar del conflicto
           * Escribir 'cancelar' para cancelar la acción
-    
+    No digas que vas a añadir o que has añadido el evento ya que no es tu función.
     Tu respuesta final (solo el texto para el usuario):
     """
     return prompt

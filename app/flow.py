@@ -33,7 +33,7 @@ NODE_MESSAGES = {
     "reasoning_interpreter": "Procesando petición...",
     "verifier": "Verificando conflictos...",
     "tool_executor": "Ejecutando acción...",
-    "reasoning_executor": "Obteniendo datos del calendario...",
+    "reasoning_executor": "Consultando calendario...",
     "proposer": "Buscando huecos libres...",
     "analysis": "Analizando resultados...",
     "chat": "Pensando...",
@@ -93,6 +93,7 @@ def run_agent(user_input: str, user_id: str, user_preferences: str = "", convers
     # EJECUTAR EL GRAFO Y EMITIR ACTUALIZACIONES
     try:
         result_found = False
+        calendar_modified = False  # Rastrear si hubo modificación
         
         # app.stream() ejecuta el grafo paso a paso
         for action in app.stream(stream_input, config=config):
@@ -109,6 +110,11 @@ def run_agent(user_input: str, user_id: str, user_preferences: str = "", convers
                         "type": "progress",
                         "message": NODE_MESSAGES[node_name]
                     }
+                
+                # Detectar si se ejecutó una acción de escritura
+                if node_name == "tool_executor":
+                    # Si pasó por tool_executor, hubo modificación del calendario
+                    calendar_modified = True
                 
                 # 2. DETECTAR INTERRUPCIÓN (human-in-the-loop)
                 # El grafo se pausa y espera que el usuario elija una opción
@@ -129,11 +135,13 @@ def run_agent(user_input: str, user_id: str, user_preferences: str = "", convers
                 # El grafo llegó al nodo final (confirmer)
                 if node_name == "confirmer":
                     final_response = action["confirmer"].get("final_response")
+                    
                     yield {
                         "type": "response",
                         "data": {
                             "status": "complete",
-                            "response": final_response or "No pude procesar tu mensaje."
+                            "response": final_response or "No pude procesar tu mensaje.",
+                            "calendar_modified": calendar_modified
                         }
                     }
                     result_found = True

@@ -141,6 +141,7 @@ def login(user_id: str = Query(..., description="Email del usuario")):
 #         return {"status": "error", "message": "No se pudo resetear la conversación."}
 
 
+
 # Endpoint para GUARDAR preferencias
 @app.post("/api/preferences")
 def save_preferences(req: PreferencesRequest):
@@ -185,6 +186,7 @@ async def chat_endpoint(request: UserRequest):
     
     El frontend recibe estos mensajes uno a uno mientras el agente trabaja.
     """
+    import asyncio
     
     async def generate():
         """
@@ -215,6 +217,8 @@ async def chat_endpoint(request: UserRequest):
         ):
             # Convertir a formato SSE: "data: {...}\n\n"
             yield f"data: {json.dumps(update, ensure_ascii=False)}\n\n"
+            # Forzar flush para Cloud Run - pequeña pausa para que se envíe el mensaje
+            await asyncio.sleep(0.01)
             
             # Guardar la respuesta final para logging
             if update.get("type") == "response":
@@ -239,8 +243,10 @@ async def chat_endpoint(request: UserRequest):
         generate(), 
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
             "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "Transfer-Encoding": "chunked",
         }
     )
 

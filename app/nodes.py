@@ -62,22 +62,23 @@ def router_node(state: AgentState) -> dict:
         print(f"[Router] (Chat)")
         return {"routing_decision": "chat"}
     
-    # PRIMERO: Detectar búsquedas/razonamiento (prioridad sobre acciones)
-    reasoning_keywords = ["busca", "hueco", "encuentra", "tengo", "resum", "dime", "estima", "crees", "idea", "tardar", "cualquier"]
-    if any(w in message for w in reasoning_keywords):
-        print(f"[Router] (Reasoning)")
-        return {"routing_decision": "reasoning"}
-    
-    # SEGUNDO: Detectar acciones directas (crear, borrar, etc)
+    # PRIMERO: Detectar acciones directas (tiene prioridad)
     strong_tool_keywords = [
-        "crea", "borra", "elimina", "agenda", "pon ", "quita", "modifica", "mueve" ,
-        "cambia", "duplica", "cancela", "deshaz", "revierte", "muestra", "lista"]
-    
+        "crea", "borra", "elimina", "agenda", "pon ", "quita", "modifica", "mueve",
+        "cambia", "duplica", "cancela", "deshaz", "revierte", "muestra", "lista",
+        "añade", "añadas", "crees", "pongas", "borres", "elimines",
+        "recuerdame", "recordar", "recuerda", "avísame", "avisame"]
     if any(w in message for w in strong_tool_keywords):
         print(f"[Router] (Tool)")
         return {"routing_decision": "tool_use"}
     
-    print(f"[Router] (Chat - fallback to LLM)")
+    # SEGUNDO: Detectar búsqueda/razonamiento (si no hay verbo de acción)
+    # "quiero ir al cine" → reasoning (buscar huecos)
+    reasoning_keywords = ["busca", "hueco", "encuentra", "tengo", "resum", "dime", "estima", "crees", "idea", "tardar", "cualquier", "quiero", "quisiera", "podria", "podría", "cuando puedo", "libre"]
+    if any(w in message for w in reasoning_keywords):
+        print(f"[Router] (Reasoning)")
+        return {"routing_decision": "reasoning"}
+    
 
     
     classification_prompt = f"""
@@ -147,17 +148,11 @@ def reasoning_interpreter(state: dict) -> dict:
     user_input = state['input_user']
     conversation_history = state.get('conversation_history', [])
     
-    # Palabras que indican referencia a conversación anterior
-    reference_words = ["eso", "lo mismo", "añade", "ponlo", "agéndalo", "créalo", "la primera", "la segunda", "el primero", "el segundo", "sí", "ok", "vale"]
-    message_lower = user_input.lower()
-    
-    # Solo usar historial si hay palabras de referencia Y NO es una nueva búsqueda
-    needs_history = any(w in message_lower for w in reference_words) and "busca" not in message_lower
-    
-    # Construir contexto de conversación reciente SOLO si es necesario
+    # Construir contexto de conversación reciente SIEMPRE que haya historial
+    # Esto evita inconsistencias cuando el usuario pregunta sobre algo mencionado antes
     history_context = ""
-    if conversation_history and needs_history:
-        history_context = "\n\nCONTEXTO DE CONVERSACIÓN RECIENTE (para entender referencias como 'eso', 'lo mismo', etc.):\n"
+    if conversation_history:
+        history_context = "\n\nCONTEXTO DE CONVERSACIÓN RECIENTE (úsalo para entender el contexto y evitar contradicciones):\n"
         for msg in conversation_history:
             role = "Usuario" if msg.get("role") == "user" else "Asistente"
             history_context += f"{role}: {msg.get('content', '')}\n"
@@ -806,10 +801,18 @@ def analysis_node(state: dict) -> dict:
     function_name = actions[0].get('function')
     raw_data_str = str(state.get('api_response_list', []))
     user_query = state.get('input_user', '')  
-
     user_preferences = state.get('user_preferences', '')
+    conversation_history = state.get('conversation_history', [])
+    
+    # Construir contexto de conversación para evitar contradicciones
+    history_context = ""
+    if conversation_history:
+        history_context = "\n\n[CONTEXTO DE CONVERSACIÓN RECIENTE - No contradigas información previa]:\n"
+        for msg in conversation_history:
+            role = "Usuario" if msg.get("role") == "user" else "Asistente"
+            history_context += f"{role}: {msg.get('content', '')}\n"
 
-    prompt_final = analysis_prompt(function_name, raw_data_str, user_query, user_preferences)
+    prompt_final = analysis_prompt(function_name, raw_data_str, user_query, user_preferences) + history_context
     response_text = generar_respuesta(prompt_final).strip()
     
     # Determinar si hay opciones accionables

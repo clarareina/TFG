@@ -68,7 +68,7 @@ const ChatInterface = ({ userId }: ChatProps) => {
       // Leer el stream de respuestas
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
-      let finalData: { status?: string; response?: string } | null = null
+      let finalData: { status?: string; response?: string; calendar_modified?: boolean } | null = null
 
       // Bucle para leer cada chunk del stream
       while (true) {
@@ -109,13 +109,8 @@ const ChatInterface = ({ userId }: ChatProps) => {
         }
         setMessages(prev => [...prev, botMsg])
 
-        // Detectar si hubo modificación del calendario
-        const resultStr = (finalData.response || '').toLowerCase()
-        const calendarModified = ['creado', 'eliminado', 'modificado', 'actualizado', 'duplicado', 'deshecha', 'deshecho'].some(
-          keyword => resultStr.includes(keyword)
-        )
-
-        if (calendarModified) {
+        // Recargar calendario si el backend indica que hubo modificación
+        if (finalData.calendar_modified) {
           setTimeout(() => {
             window.dispatchEvent(new CustomEvent('calendarUpdated', { bubbles: true }))
           }, 100)

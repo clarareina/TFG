@@ -9,6 +9,39 @@ from typing import Dict, Any
 
 LOCAL_TZ = ZoneInfo("Europe/Madrid")
 
+
+def _resolve_calendar_id(user_id: str, calendar_id: str) -> str:
+    """
+    Resuelve un nombre de calendario a su ID real de Google Calendar.
+    Si el calendar_id ya es válido (primary o email), lo devuelve tal cual.
+    Si es un nombre (ej: "trabajo"), busca en los calendarios del usuario.
+    """
+    if not calendar_id or calendar_id == "primary":
+        return "primary"
+    
+    # Si ya parece un email válido (contiene @), usarlo directamente
+    if "@" in calendar_id:
+        return calendar_id
+    
+    try:
+        service = get_calendar_service(user_id)
+        calendars = service.calendarList().list().execute().get('items', [])
+        
+        # Buscar por nombre (case insensitive)
+        search_name = calendar_id.lower().strip()
+        for cal in calendars:
+            cal_summary = cal.get('summary', '').lower()
+            if search_name in cal_summary or cal_summary in search_name:
+                return cal.get('id')  # Devolver el ID real
+        
+        # Si no se encuentra, devolver "primary" como fallback
+        print(f"[calendar] No se encontró calendario '{calendar_id}', usando 'primary'")
+        return "primary"
+    except Exception as e:
+        print(f"[calendar] Error resolviendo calendar_id: {e}")
+        return "primary"
+
+
 # def create_event(
 #     service=svc, summary=None,
 #     start_date=None, end_date=None,
@@ -115,6 +148,9 @@ def create_event(
     send_updates="none"
 ):
     try:
+        # Resolver calendar_id si es un nombre en lugar de un ID
+        calendar_id = _resolve_calendar_id(user_id, calendar_id)
+        
         # 1. LÓGICA DE FECHAS 
         if not start_date:
             start_date = datetime.now(LOCAL_TZ).date().isoformat()
@@ -206,16 +242,19 @@ def create_event(
 def get_id(user_id: str, summary, start_date=None, end_date=None, calendar_id="primary"):
     try:
         user_gave_date = start_date is not None
+        original_start_date = start_date  # Guardar fecha original para comparación
 
         if not start_date:
             start_date = datetime.now(LOCAL_TZ).isoformat()
         elif len(start_date) == 10:
-            start_date = datetime.fromisoformat(start_date).replace(tzinfo=LOCAL_TZ).isoformat()
+            # Para incluir eventos de día completo, empezar desde el inicio del día
+            start_date = datetime.fromisoformat(start_date).replace(hour=0, minute=0, second=0, tzinfo=LOCAL_TZ).isoformat()
 
         if not end_date:
             end_date = (datetime.now(LOCAL_TZ) + timedelta(days=365)).isoformat()
         elif len(end_date) == 10:
-            end_date = datetime.fromisoformat(end_date).replace(tzinfo=LOCAL_TZ).isoformat()
+            # Para incluir eventos de día completo, incluir el día completo (hasta el día siguiente)
+            end_date = (datetime.fromisoformat(end_date) + timedelta(days=1)).replace(hour=0, minute=0, second=0, tzinfo=LOCAL_TZ).isoformat()
 
         events_result = get_calendar_service(user_id).events().list(
             calendarId=calendar_id,
@@ -244,7 +283,8 @@ def get_id(user_id: str, summary, start_date=None, end_date=None, calendar_id="p
             event_summary = normalize(e.get("summary", ""))
             if event_summary == summary_normalized:
                 if user_gave_date:
-                    if event_start[:10] == start_date[:10]:
+                    # Comparar con la fecha original (YYYY-MM-DD)
+                    if event_start[:10] == original_start_date[:10]:
                         return e["id"]
                 else:
                     return e["id"]

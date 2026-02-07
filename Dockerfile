@@ -18,5 +18,5 @@ COPY . .
 # 6. Cloud Run inyecta la variable PORT (normalmente 8080)
 ENV PORT=8080
 
-# 7. Comando de arranque
-CMD exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT}
+# 7. Comando de arranque con configuración para streaming SSE
+CMD exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --timeout-keep-alive 120
