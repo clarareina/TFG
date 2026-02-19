@@ -10,6 +10,21 @@ from typing import Dict, Any
 LOCAL_TZ = ZoneInfo("Europe/Madrid")
 
 
+def _get_friendly_datetime(start_obj):
+    """Devuelve un string legible de la fecha y hora de un objeto start de Google Calendar."""
+    if not start_obj:
+        return ""
+    if "dateTime" in start_obj:
+        # Google suele enviar la TZ o Z. Ajustamos a LOCAL_TZ para mostrar al usuario.
+        dt = datetime.fromisoformat(start_obj["dateTime"].replace("Z", "+00:00")).astimezone(LOCAL_TZ)
+        return dt.strftime("%d/%m/%Y a las %H:%M")
+    elif "date" in start_obj:
+        # Formato YYYY-MM-DD
+        d = datetime.strptime(start_obj["date"], "%Y-%m-%d")
+        return d.strftime("%d/%m/%Y") + " (todo el día)"
+    return ""
+
+
 def _resolve_calendar_id(user_id: str, calendar_id: str) -> str:
     """
     Resuelve un nombre de calendario a su ID real de Google Calendar.
@@ -226,8 +241,9 @@ def create_event(
             eventId=created['id'], 
             previous_body=None
         )
+        friendly_time = _get_friendly_datetime(created.get("start"))
         return {
-            "response": f"Se ha creado el evento “{summary}” correctamente.",
+            "response": f"Se ha creado el evento “{summary}” para el {friendly_time} correctamente.",
             "undo_info": undo_info
         }
     
@@ -321,8 +337,9 @@ def delete_event(user_id: str, summary, start_date=None, end_date=None, calendar
             previous_body=event_before_delete 
         )
 
+        friendly_time = _get_friendly_datetime(event_before_delete.get("start"))
         return {
-            "response": f"He eliminado el evento “{summary}” correctamente.",
+            "response": f"He eliminado el evento “{summary}” del {friendly_time} correctamente.",
             "undo_info": undo_info
         }
     
@@ -599,7 +616,7 @@ def patch_event(user_id: str, summary, start_date=None, changes=None):
             eventId=event_id
         ).execute()
 
-        get_calendar_service(user_id).events().patch(calendarId="primary", eventId=event_id, body=changes).execute()
+        updated_event = get_calendar_service(user_id).events().patch(calendarId="primary", eventId=event_id, body=changes).execute()
 
         undo_info = UndoableAction(
             operation="patch_event", 
@@ -608,8 +625,9 @@ def patch_event(user_id: str, summary, start_date=None, changes=None):
             previous_body=event_before_patch 
         )
         
+        friendly_time = _get_friendly_datetime(updated_event.get("start"))
         return {
-            "response": f"El evento “{summary}” se actualizó correctamente.",
+            "response": f"El evento “{summary}” se ha actualizado para el {friendly_time} correctamente.",
             "undo_info": undo_info
         }
     except Exception as e:
@@ -669,7 +687,8 @@ def duplicate_event(user_id: str, summary=None, original_date=None, new_date=Non
         )
 
         if result_package.get("undo_info"):
-            result_package["response"] = f"He duplicado el evento “{summary}” correctamente en la fecha {new_date}."
+            resp = result_package.get("response", "")
+            result_package["response"] = resp.replace("Se ha creado", "He duplicado")
     
     except ValueError:
         return {

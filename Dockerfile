@@ -19,4 +19,4 @@ COPY . .
 ENV PORT=8080
 
 # 7. Comando de arranque con configuración para streaming SSE
-CMD exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --timeout-keep-alive 120
+CMD exec uvicorn app.main:app --host 0.0.0.0 --port $PORT --timeout-keep-alive 120

@@ -11,12 +11,15 @@ google-generativeai
 langchain
 langgraph
 langgraph-checkpoint-sqlite  
+langchain-core<1.0.0
 
 # Utilidades
 python-dotenv
 tinydb  # Para logs y trazabilidad
 tzlocal  # Para gestionar automáticamente la zona horaria local
 pandas
+langchain-google-genai 
+scikit-learn
 
 # Backend
 fastapi

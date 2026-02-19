@@ -14,7 +14,7 @@ except ImportError:
     exit()
 
 # Usuario de prueba (cambia por tu email si es necesario)
-TEST_USER_ID = "santiclaragpt@gmail.com"
+TEST_USER_ID = "claratfgpruebas@gmail.com"
 
 # ============================================
 # TESTS SECUENCIALES - PARTIENDO DE CALENDARIO VACÍO
@@ -178,15 +178,21 @@ def run_test_suite():
         print(f"\n🔹 Test [{test_num}/{total_tests}]: {display}")
         print("-" * 50)
         try:
-            response = run_agent(prompt, TEST_USER_ID)
+            # run_agent es un GENERADOR: hay que iterarlo
+            final_response = None
+            for update in run_agent(prompt, TEST_USER_ID):
+                if update["type"] == "progress":
+                    print(f"   ⏳ {update['message']}")
+                elif update["type"] == "response":
+                    final_response = update["data"]
             
-            if isinstance(response, dict):
-                status = response.get("status", "unknown")
-                resp_text = response.get("response", "Sin respuesta")
+            if final_response:
+                status = final_response.get("status", "unknown")
+                resp_text = final_response.get("response", "Sin respuesta")
                 print(f"   Status: {status}")
                 print(f"   Response: {resp_text[:150]}..." if len(str(resp_text)) > 150 else f"   Response: {resp_text}")
             else:
-                print(f"   Response: {str(response)[:150]}...")
+                print(f"   ⚠️ Sin respuesta final del agente")
             
             successful_runs += 1
             

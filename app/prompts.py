@@ -121,7 +121,6 @@ def tool_prompt(user_preferences=""):
   7) delete_date_events
   Elimina TODOS los eventos en un rango de fechas.
   Parámetros OBLIGATORIOS: start_date, end_date (ambos son requeridos, NUNCA omitir).
-  Si el usuario dice "borra todo" sin fechas, usa la fecha de hoy como start_date y end_date.
   Si dice "borra los de la semana", calcula start_date (lunes) y end_date (domingo) de esa semana.
 
   8) delete_some_events
@@ -178,7 +177,6 @@ def tool_prompt(user_preferences=""):
   - delete_event ↔ elimina, borra, quita, suprime, cancela.
   - duplicate_event ↔ duplica, copia, clona, repite, replica.
   - patch_event ↔ cambia, modifica, ajusta, edita, actualiza.
-  # - get_events ↔ dime, muéstrame, enséñame, lista, muestra, consulta, busca, obtén. (DESHABILITADO)
   - undo_last_action ↔ deshacer, revierte, cancela eso, vuelve atrás.
 
   E) Formatos
@@ -671,6 +669,23 @@ RESPUESTA DEL USUARIO: añade los 3 pero la del martes ponla a las 19:00"
       }
     }
   ]
+
+
+  Usuario: "PETICIÓN ORIGINAL DEL USUARIO: borra todo
+ 
+ RESPUESTA DEL AGENTE: Claro, puedo eliminar eventos, pero 'todo' es un rango muy amplio. Por favor, especifica el rango (mes, semana, etc).
+ 
+ RESPUESTA DEL USUARIO: la semana"
+   Respuesta:
+   [
+     {
+       "function": "delete_date_events",
+       "parameters": {
+         "start_date": "2024-01-20",
+         "end_date": "2024-01-26"
+       }
+     }
+   ]
   """
 
 

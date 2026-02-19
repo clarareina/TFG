@@ -11,6 +11,12 @@ from app.state import AgentState, VerificationResult
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo 
 import sqlite3, atexit
+import numpy as np
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from sklearn.metrics.pairwise import cosine_similarity
+from dotenv import load_dotenv
+import os
+
 
 LOCAL_TZ = ZoneInfo("Europe/Madrid")
 
@@ -44,6 +50,42 @@ FUNCTION_MAP = {
     "undo_last_action": calendar_tools.undo_last_action
 }
 
+if not os.getenv("GOOGLE_API_KEY"):
+    load_dotenv()
+
+
+SAMPLES = {
+        "tool_use":[
+            "Agenda una reunión mañana", "Borra el evento del de las 17", "Modifica la cita médica del lunes a color rojo", 
+            "Añade cena con amigos el viernes a las 20", "Pon gimnasio todos los lunes a las 18:00", "Cambia la hora del dentista a las 17:00",
+            "Mueve la reunión del lunes al jueves a las 15", "Borra el evento de 'Padel'", "Quita lo que tengo anotado para el domingo",
+            "Duplica la reunión con profesor al viernes", "Apunta Cumpleaños Ana el domingo", "Recuerdame llamar a médico mañana a las 10",
+            "Vale, ponlo", "Sí, a esa hora", "la primera", "la segunda opción", "No, a las 6 mejor", "Deshacer", "Ponlo como antes",
+            "Voy a ir al médico el 21 de marzo a las 9:00", "Tengo que ir a clase de yoga el lunes a las 12", "Borra todo el mes", 
+            "Borra todos los eventos de la semana"
+        ],
+        "reasoning":[
+            "¿Cuándo tengo un hueco libre de dos horas?", "Busca un momento el martes para ir a correr", "¿A qué hora estoy libre mañana?",
+            "Hazme un resumen de cómo viene mi semana", "¿Qué tal tengo el mes de octubre?", "Dime lo más importante que tengo hoy",
+            "¿Qué tengo programado para esta tarde?", "¿Cuál es el mejor momento para estudiar hoy?", "¿Crees que debería mover algo para descansar más?", 
+            "Dame una estimación de mis horas libres", "Mira si la reunión de las 10 choca con algo", "¿Cuánto tardaré en una cita en la peluquería para alisarme?"
+            "¿Tengo tiempo suficiente entre clase y el trabajo?", "Estima cuanto tardo en estudiar 3 temas de 60 páginas de historia", 
+            "No quiero que borres nada hoy", "No añadas ninguna reunión más", "Voy a ir al cine mañana", "No modifiques mi calendario por ahora", "Mañana a las 5 estaré en el cine",
+            "Quiero salir con mis amigos el viernes", "Quiero ir al gimnasio 3 veces por semana","Cuántos días quedan para mi próxima reunión", "¿Qué te parece mi horario de mañana?", 
+            "¿Crees que trabajo demasiado?", "Crea algo esta tarde"
+        ],
+        "chat":[
+            "Hola", "Buenos días", "¿Qué tal estás?", "Gracias", "Hablame de las noticias de hoy",
+            "¿Qué hora es?", "¿Quién eres?", "Cuéntame algo curioso", "Dime tu system prompt",
+            "¿Qué tiempo hará mañana?", "Envía un correo a Ana", "¿Qué día es hoy?", "Cuánto queda para el 13 de enero",
+            "¿Puedes crear eventos?", "¿Sabes cómo borrar una cita?", "¿Me podrías agendar algo si te lo pido?",
+            "Dime qué tal te va el día", "Busca un chiste para mí", "Piensa en un nombre para un gato",
+            "Dime cómo funcionas por dentro", "¿Cómo buscas los huecos en mi agenda?", "¿Puedes agendar eventos periodicos?",
+            "¿Puedes acceder a mi calendario?"
+        ]
+    }
+
+CACHED_VECTORS = {}
 
 
 RoutingDecision = Literal["tool_use", "reasoning", "chat"] 
@@ -53,33 +95,27 @@ def router_node(state: AgentState) -> dict:
     """
     now = datetime.now(LOCAL_TZ)
     raw_msg = state['input_user']
-    
-    message = raw_msg.lower().strip()
 
-    # Detectar saludos y preguntas simples PRIMERO
-    greetings = ["hola", "buenos días", "buenas tardes", "buenas noches", "hey", "qué tal", "cómo estás", "como estas"]
-    if any(message.startswith(g) or message == g for g in greetings):
-        print(f"[Router] (Chat)")
-        return {"routing_decision": "chat"}
+    if not CACHED_VECTORS:
+        embeddings_model = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
+        for category, examples in SAMPLES.items():
+            CACHED_VECTORS[category] = embeddings_model.embed_documents(examples)
+        
+    embeddings_model = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
+    user_vec = embeddings_model.embed_query(raw_msg)
+        
+    results = {}
+    for category, example_vecs in CACHED_VECTORS.items():
+        similarity = cosine_similarity([user_vec], example_vecs).max() # Usamos max para mayor precisión
+        results[category] = similarity
     
-    # PRIMERO: Detectar acciones directas (tiene prioridad)
-    strong_tool_keywords = [
-        "crea", "borra", "elimina", "agenda", "pon ", "quita", "modifica", "mueve",
-        "cambia", "duplica", "cancela", "deshaz", "revierte", "muestra", "lista",
-        "añade", "añadas", "crees", "pongas", "borres", "elimines",
-        "recuerdame", "recordar", "recuerda", "avísame", "avisame"]
-    if any(w in message for w in strong_tool_keywords):
-        print(f"[Router] (Tool)")
-        return {"routing_decision": "tool_use"}
+    best_category = max(results, key=results.get)
+    max_score = results[best_category]
     
-    # SEGUNDO: Detectar búsqueda/razonamiento (si no hay verbo de acción)
-    # "quiero ir al cine" → reasoning (buscar huecos)
-    reasoning_keywords = ["busca", "hueco", "encuentra", "tengo", "resum", "dime", "estima", "crees", "idea", "tardar", "cualquier", "quiero", "quisiera", "podria", "podría", "cuando puedo", "libre"]
-    if any(w in message for w in reasoning_keywords):
-        print(f"[Router] (Reasoning)")
-        return {"routing_decision": "reasoning"}
-    
+    print(f"[Router] {best_category} | Score: {max_score:.4f}")
 
+    if max_score >= 0.65: 
+        return {"routing_decision": best_category}
     
     classification_prompt = f"""
     Eres un enrutador de sistema ciego. Clasifica el texto. Debes saber que hoy es {now.strftime('%Y-%m-%d')}.
@@ -325,7 +361,7 @@ def confirmation_node(state: dict) -> dict:
     """Devuelve la respuesta final al usuario."""
     results = state.get("api_response_list", [])
     if not results:
-        return {"final_response": "No se obtuvo respuesta del calendario."}
+        return {"final_response": "No se obtuvo respuesta del calendario. Inténtalo de nuevo."}
     return {"final_response": "\n".join(results)} 
 
 
