@@ -26,7 +26,7 @@ except ImportError:
 # CONFIGURACIÓN
 # Al pasar este ID, el agente consultará las preferencias en tu bbdd_clara.json 
 TEST_USER_ID = "claratfgpruebas@gmail.com"
-CSV_FILE = "evaluacioes.csv"
+CSV_FILE = "evaluaciones.csv"
 
 # --- [NUEVO] FUNCIONES DE GESTIÓN DE CSV ---
 def init_csv():
@@ -90,8 +90,8 @@ TEST_CASES = [
     "¿Cuándo es mi próxima cita médica?",
 
     # --- 6. ESTIMACIÓN Y OPINIÓN (3) ---
-    "¿Cuánto tiempo crees que tardaré en una cita médica estándar?", # [cite: 49]
     "¿Cuánto tiempo tardaré en una cita en la peluquería para hacerlme unas mechas balayage en pelo corto?",
+    "¿Cuánto tiempo crees que tardaré en una cita médica estándar?", # [cite: 49]
     "¿Qué opinas de mi carga de trabajo para el lunes?", 
     "¿Crees que tengo muchas actividades sociales esta semana?",
     "¿Qué opinas de añadir una reunión hoy a las 16?",

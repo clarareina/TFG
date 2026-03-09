@@ -267,7 +267,7 @@ def create_event(
     except Exception as e:
         error_msg = str(e)
         if "out of range" in error_msg or "match format" in error_msg:
-            return{"response": "Error: La fecha u hora indicada no es válida.", "undo_info": None}
+            return{"response": "La fecha u hora indicada no es válida.", "undo_info": None}
         else:
             return {"response": f"Hubo un error técnico al crear el evento, intentalo de nuevo.", "undo_info": None}
     
@@ -799,7 +799,7 @@ def patch_event(user_id: str, summary, start_date=None, changes=None):
     except Exception as e:
         error_msg = str(e)
         if "out of range" in error_msg or "match format" in error_msg:
-            return{"response": "Error: La fecha u hora indicada no es válida.", "undo_info": None}
+            return{"response": "La fecha u hora indicada no es válida.", "undo_info": None}
         else:
             return {"response": f"Hubo un error técnico al modificar el evento {summary}, intentalo de nuevo.", "undo_info": None}
 
