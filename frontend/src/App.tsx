@@ -20,7 +20,7 @@ const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
     if (!email) return alert("Por favor introduce un usuario")
     setIsLoading(true)
 
-    const fullEmail = `${email}@gmail.com`
+    const fullEmail = email.trim()
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/auth/login?user_id=${fullEmail}`)
@@ -45,27 +45,24 @@ const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
   return (
     <div style={{
       display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center',
-      backgroundColor: '#f3f4f6', flexDirection: 'column', gap: '20px'
+      backgroundColor: '#e6f0fcff', flexDirection: 'column', gap: '20px'
     }}>
-      <div className="card" style={{ width: '400px', alignItems: 'center', gap: '20px' }}>
-        <h2>TFG</h2>
-        <p style={{ color: '#666', textAlign: 'center' }}>Inicia sesión con una cuenta de google</p>
+      <div className="card" style={{ width: '500px', minHeight: '300px', padding: '40px 40px', alignItems: 'center', justifyContent: 'flex-end', display: 'flex', flexDirection: 'column', gap: '25px' }}>
+        <h2 style={{ fontSize: '32px', margin: '0' }}>TFG</h2>
+        <p style={{ color: '#666', textAlign: 'center', fontSize: '25px', margin: '0 0 10px 0' }}>Inicia sesión con una cuenta de google</p>
         <div style={{ display: 'flex', width: '100%' }}>
           <input
-            type="text" placeholder="usuario" value={email}
+            type="email" placeholder="Introduce tu email" value={email}
             onChange={e => setEmail(e.target.value)}
-            style={{ flex: 1, padding: '10px', borderRadius: '8px 0 0 8px', border: '1px solid #ddd', borderRight: 'none' }}
+            onKeyDown={e => e.key === 'Enter' && handleLogin()}
+            style={{ flex: 1, padding: '15px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }}
           />
-          <span style={{
-            padding: '10px 12px', background: '#f3f4f6', border: '1px solid #ddd',
-            borderRadius: '0 8px 8px 0', color: '#666', whiteSpace: 'nowrap'
-          }}>@gmail.com</span>
         </div>
         <button
           onClick={handleLogin} disabled={isLoading}
           style={{
-            width: '100%', padding: '12px', background: '#2563eb', color: 'white',
-            border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
+            width: '100%', padding: '12px', background: '#1a48aaff', color: 'white',
+            border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '18px'
           }}
         >
           {isLoading ? "Verificando..." : "Iniciar Sesión"}
@@ -235,7 +232,7 @@ function App() {
               rows={6}
               value={prefsText}
               onChange={(e) => setPrefsText(e.target.value)}
-              placeholder="Ejemplos de preferencias:&#10;&#10; - Trabajo de 9:00 a 18:00&#10; - Prefiero gimnasio por la tarde&#10; - No reuniones los viernes&#10; - Descansos de 15 min entre eventos"
+              placeholder="Ejemplos de preferencias:&#10; - Trabajo de 9:00 a 18:00&#10; - Yoga en color morado&#10; - Prefiero gimnasio por la tarde&#10; - No reuniones los viernes&#10; - Duración de las reuniones de 15 min por defecto"
               style={{
                 width: '100%',
                 padding: '14px',

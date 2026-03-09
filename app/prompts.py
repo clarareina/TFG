@@ -75,7 +75,7 @@ def tool_prompt(user_preferences=""):
   Eres un traductor de lenguaje natural a funciones Python de un agente de calendario.
   Formato de salida:
   {
-    "function": "<create_event | delete_event | delete_date_events | delete_some_events | duplicate_event | patch_event>",
+    "function": "<create_event | delete_event | delete_date_events | delete_some_events | duplicate_event | patch_event | patch_some_events>",
     "parameters": { ... }
   }
   Si hay varias instrucciones (1., 2., 3., …), devuelve un ARRAY JSON con un objeto por instrucción, en el mismo orden.
@@ -107,6 +107,8 @@ def tool_prompt(user_preferences=""):
   Modifica parcialmente un evento (título, hora, ubicación, color, recordatorios, asistentes, recurrencia…).
   Parámetros: summary, start_date, changes (objeto con los campos a modificar, p. ej. summary, description, location, colorId, attendees, recurrence, reminders, start/end con date/time separados).
   Llama a get_id para obtener el eventId.
+  
+
 
   # 5) get_events (USO INTERNO - NO EXPONER AL USUARIO)
   # Obtiene los eventos de un periodo o filtrados por nombre.
@@ -122,12 +124,21 @@ def tool_prompt(user_preferences=""):
   Elimina TODOS los eventos en un rango de fechas.
   Parámetros OBLIGATORIOS: start_date, end_date (ambos son requeridos, NUNCA omitir).
   Si dice "borra los de la semana", calcula start_date (lunes) y end_date (domingo) de esa semana.
+  Si dice "borra todo", responde: Claro, puedo eliminar eventos, pero 'todo' es un rango muy amplio. Por favor, especifica el rango (mes, semana, etc).
+
 
   8) delete_some_events
   Elimina TODOS los eventos que coincidan con un criterio de nombre (summary) y opcionalmente un rango de fechas.
   Parámetros: summary (OBLIGATORIO), start_date (opcional), end_date (opcional).
   Usa esta función cuando el usuario quiera eliminar varios eventos de un mismo tipo o con un nombre común.
   Por ejemplo: "elimina todos los eventos de médico" o "elimina todos los de estudio de esta semana".
+
+  9) patch_some_events
+  Modifica TODOS los eventos que coincidan con un criterio de nombre (summary).
+  Parámetros: summary (OBLIGATORIO), changes (OBLIGATORIO, objeto con los campos a modificar: colorId, summary, description, location...), start_date (opcional), end_date (opcional).
+  Usa esta función cuando el usuario quiera modificar VARIOS eventos del mismo tipo o periódicos.
+  Por ejemplo: "cambia todos los yoga a morado", "pon todas las reuniones en rojo", "cambia el color de todos los gimnasio".
+  IMPORTANTE: Si el usuario dice "todos los X" o "los X" (plural/periódicos) y quiere cambiar color, título, ubicación u otro atributo, usa patch_some_events, NO patch_event.
   ────────────────────────────────────────
   Reglas de interpretación (OBLIGATORIAS)
 
@@ -221,6 +232,31 @@ def tool_prompt(user_preferences=""):
   }
   }
 
+  
+  Usuario: "Evento el 7 de octubre por la noche"
+  Respuesta:
+  {
+  "function": "create_event",
+    "parameters": {
+    "summary": "Evento",
+    "start_date": "2025-10-07",
+    "start_time": "21:00",
+
+  }
+  }
+
+  Usuario: "Voy al cine el 4 de noviembre a las 22"
+  Respuesta:
+  {
+  "function": "create_event",
+    "parameters": {
+    "summary": "Cine",
+    "start_date": "2026-11-04",
+    "start_time": "22:00",
+  }
+  }
+
+
   Usuario: Crea un evento el 7 de noviembre a las 15
   Respuesta: 
   {
@@ -241,7 +277,7 @@ def tool_prompt(user_preferences=""):
   }
   }
 
-  Usuario: "Pon reunión de trabajo mañana a las 9 en el calendario de trabajo"
+  Usuario: "Pon reunión de trabajo mañana por la mañana"
   Respuesta:
   {
     "function": "create_event",
@@ -249,7 +285,6 @@ def tool_prompt(user_preferences=""):
       "summary": "Reunión de trabajo",
       "start_date": "2025-10-04",
       "start_time": "09:00",
-      "calendar_id": "trabajo"
     }
   }
 
@@ -517,6 +552,7 @@ def tool_prompt(user_preferences=""):
      }
   }
   ]
+  
 
   Usuario: "Quita todas las reuniones del mes pasado"
   Respuesta:
@@ -527,6 +563,34 @@ def tool_prompt(user_preferences=""):
         "summary": "reunión",
         "start_date": "2025-09-01",
         "end_date": "2025-09-30"
+     }
+  }
+  ]
+  
+  Usuario: "Pon todas las reuniones en rojo"
+  Respuesta:
+  [
+  {
+     "function": "patch_some_events",
+     "parameters": {
+        "summary": "reunión",
+        "changes": {
+           "colorId": "11"
+        }
+     }
+  }
+  ]
+
+  Usuario: "Añade la ubicación 'Oficina Central' a todos los eventos de gimnasio"
+  Respuesta:
+  [
+  {
+     "function": "patch_some_events",
+     "parameters": {
+        "summary": "gimnasio",
+        "changes": {
+           "location": "Oficina Central"
+        }
      }
   }
   ]

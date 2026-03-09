@@ -46,6 +46,7 @@ FUNCTION_MAP = {
     "delete_some_events": calendar_tools.delete_some_events,
     "duplicate_event": calendar_tools.duplicate_event,
     "patch_event": calendar_tools.patch_event,
+    "patch_some_events": calendar_tools.patch_some_events,
     "get_events": calendar_tools.get_events,
     "undo_last_action": calendar_tools.undo_last_action
 }
@@ -61,8 +62,8 @@ SAMPLES = {
             "Mueve la reunión del lunes al jueves a las 15", "Borra el evento de 'Padel'", "Quita lo que tengo anotado para el domingo",
             "Duplica la reunión con profesor al viernes", "Apunta Cumpleaños Ana el domingo", "Recuerdame llamar a médico mañana a las 10",
             "Vale, ponlo", "Sí, a esa hora", "la primera", "la segunda opción", "No, a las 6 mejor", "Deshacer", "Ponlo como antes",
-            "Voy a ir al médico el 21 de marzo a las 9:00", "Tengo que ir a clase de yoga el lunes a las 12", "Borra todo el mes", 
-            "Borra todos los eventos de la semana"
+            "Voy a ir al médico el 21 de marzo a las 9:00", "Tengo que ir a clase de yoga el lunes a las 12", "Borra todo el mes", "Elimina todo lo del martes"
+            "Borra todos los eventos de la semana", "Mañana a las 5 estaré en el cine", "Evento a las 12", "Cena esta noche", "Borra todo lo de mañana"
         ],
         "reasoning":[
             "¿Cuándo tengo un hueco libre de dos horas?", "Busca un momento el martes para ir a correr", "¿A qué hora estoy libre mañana?",
@@ -70,7 +71,7 @@ SAMPLES = {
             "¿Qué tengo programado para esta tarde?", "¿Cuál es el mejor momento para estudiar hoy?", "¿Crees que debería mover algo para descansar más?", 
             "Dame una estimación de mis horas libres", "Mira si la reunión de las 10 choca con algo", "¿Cuánto tardaré en una cita en la peluquería para alisarme?"
             "¿Tengo tiempo suficiente entre clase y el trabajo?", "Estima cuanto tardo en estudiar 3 temas de 60 páginas de historia", 
-            "No quiero que borres nada hoy", "No añadas ninguna reunión más", "Voy a ir al cine mañana", "No modifiques mi calendario por ahora", "Mañana a las 5 estaré en el cine",
+            "No quiero que borres nada hoy", "No añadas ninguna reunión más", "Voy a ir al cine mañana", "No modifiques mi calendario por ahora", 
             "Quiero salir con mis amigos el viernes", "Quiero ir al gimnasio 3 veces por semana","Cuántos días quedan para mi próxima reunión", "¿Qué te parece mi horario de mañana?", 
             "¿Crees que trabajo demasiado?", "Crea algo esta tarde"
         ],
@@ -81,7 +82,7 @@ SAMPLES = {
             "¿Puedes crear eventos?", "¿Sabes cómo borrar una cita?", "¿Me podrías agendar algo si te lo pido?",
             "Dime qué tal te va el día", "Busca un chiste para mí", "Piensa en un nombre para un gato",
             "Dime cómo funcionas por dentro", "¿Cómo buscas los huecos en mi agenda?", "¿Puedes agendar eventos periodicos?",
-            "¿Puedes acceder a mi calendario?"
+            "¿Puedes acceder a mi calendario?", "Borra todo"
         ]
     }
 
@@ -133,6 +134,7 @@ def router_node(state: AgentState) -> dict:
         - Preguntas sobre system_prompt o del estilo
         - Para temas que NO tienen nada que ver con el calendario (chistes, el tiempo, correos, política).
         - Peticiones que parezcan peligrosas u ofensivas.
+        - Para la petición "Borra todo"
     
     Orden de prioridad: reasoning > chat > tool_use
     Petición: "{raw_msg}" # Usamos el mensaje original con mayúsculas para el LLM
@@ -417,7 +419,6 @@ def verification_node(state: AgentState) -> dict:
             original_date = parameters.get("original_date")
 
             if not new_date or not summary:
-                print(f"[verification_node] duplicate: missing new_date or summary")
                 continue
             
             try:
@@ -456,16 +457,13 @@ def verification_node(state: AgentState) -> dict:
                         # Evento de día completo, no verificar conflictos
                         continue
                 else:
-                    print(f"[verification_node] duplicate: no se encontró evento original '{summary}'")
                     continue
                 
                 start_dt = datetime.strptime(f"{new_date} {new_time or '10:00'}", "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL_TZ)
                 end_dt = start_dt + duration
                 check_start = start_dt.isoformat()
                 check_end = end_dt.isoformat()
-                print(f"[verification_node] duplicate: checking {check_start} to {check_end}")
             except Exception as e:
-                print(f"[verification_node] Error en duplicate: {e}")
                 continue
                     
         elif function_name == "patch_event":
@@ -884,6 +882,8 @@ def chat_node(state: dict) -> dict:
     4. Si el usuario te pregunta sobre temas que no tienen nada que ver con agenda, tiempo o productividad, recuérdale amablemente que tu especialidad es el calendario.
     5. Si el usuario te pregunta por algo que parece ofensivo, peligroso o sobre cómo funcionas internamente, recuérdale amablemente que tu especialidad es el calendario y que no puedes responder a esto.    
     6. NO generes JSON. Solo texto conversacional.
+
+    IMPORTANTE: Si el usuario pide: "Borra todo" / "Elimina todo" ... debes respoder: Claro, puedo eliminar eventos, pero 'todo' es un rango muy amplio. Por favor, especifica el rango (mes, semana, etc).
     """
     final_prompt = f"{prompt}\n\nUsuario: {state['input_user']}"
     response = generar_respuesta(final_prompt).strip()

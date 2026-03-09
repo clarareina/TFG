@@ -242,8 +242,25 @@ def create_event(
             previous_body=None
         )
         friendly_time = _get_friendly_datetime(created.get("start"))
+        
+        # Añadir info de recurrencia al mensaje si existe
+        recurrence_text = ""
+        if recurrence:
+            recurrence_str = recurrence[0] if isinstance(recurrence, list) else str(recurrence)
+            recurrence_lower = recurrence_str.lower()
+            if "daily" in recurrence_lower:
+                recurrence_text = " (se repite cada día)"
+            elif "weekly" in recurrence_lower:
+                recurrence_text = " (se repite cada semana)"
+            elif "monthly" in recurrence_lower:
+                recurrence_text = " (se repite cada mes)"
+            elif "yearly" in recurrence_lower:
+                recurrence_text = " (se repite cada año)"
+            else:
+                recurrence_text = " (evento periódico)"
+        
         return {
-            "response": f"Se ha creado el evento “{summary}” para el {friendly_time} correctamente.",
+            "response": f"Se ha creado el evento “{summary}” para el {friendly_time}{recurrence_text} correctamente.",
             "undo_info": undo_info
         }
     
@@ -255,13 +272,13 @@ def create_event(
             return {"response": f"Hubo un error técnico al crear el evento, intentalo de nuevo.", "undo_info": None}
     
 
-def get_id(user_id: str, summary, start_date=None, end_date=None, calendar_id="primary"):
+def get_id(user_id: str, summary, start_date=None, end_date=None, calendar_id="primary", find_recurring_parent=False):
     try:
         user_gave_date = start_date is not None
         original_start_date = start_date  # Guardar fecha original para comparación
 
         if not start_date:
-            start_date = datetime.now(LOCAL_TZ).isoformat()
+            start_date = datetime.now(LOCAL_TZ).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
         elif len(start_date) == 10:
             # Para incluir eventos de día completo, empezar desde el inicio del día
             start_date = datetime.fromisoformat(start_date).replace(hour=0, minute=0, second=0, tzinfo=LOCAL_TZ).isoformat()
@@ -301,8 +318,14 @@ def get_id(user_id: str, summary, start_date=None, end_date=None, calendar_id="p
                 if user_gave_date:
                     # Comparar con la fecha original (YYYY-MM-DD)
                     if event_start[:10] == original_start_date[:10]:
+                        # Si se pide el padre recurrente, devolver recurringEventId
+                        if find_recurring_parent and e.get("recurringEventId"):
+                            return e["recurringEventId"]
                         return e["id"]
                 else:
+                    # Si se pide el padre recurrente, devolver recurringEventId
+                    if find_recurring_parent and e.get("recurringEventId"):
+                        return e["recurringEventId"]
                     return e["id"]
 
     except ValueError:
@@ -443,7 +466,7 @@ def delete_some_events(user_id: str, summary, start_date=None, end_date=None, ca
     
     # Configurar fechas
     if not start_date:
-        start_date = (datetime.now(LOCAL_TZ) - timedelta(days=365)).isoformat()
+        start_date = datetime.now(LOCAL_TZ).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
     elif len(start_date) == 10:
         start_date = datetime.fromisoformat(start_date).replace(tzinfo=LOCAL_TZ).isoformat()
     
@@ -522,6 +545,141 @@ def delete_some_events(user_id: str, summary, start_date=None, end_date=None, ca
             "response": f"He eliminado {deleted_count} eventos que coincidían con \"{summary}\".",
             "undo_info": undo_info 
         }
+
+
+def patch_some_events(user_id: str, summary, changes=None, start_date=None, end_date=None, calendar_id="primary"):
+    """
+    Modifica TODOS los eventos que coincidan con un criterio de nombre (summary).
+    El filtro es case-insensitive y busca coincidencia parcial.
+    Si detecta un evento recurrente (con recurringEventId), parchea el evento padre
+    para que el cambio aplique a TODA la serie.
+    """
+    import unicodedata
+    
+    if not changes:
+        return {
+            "response": "Error: No se proporcionaron cambios ('changes').",
+            "undo_info": None
+        }
+    
+    def normalize(text):
+        text = unicodedata.normalize('NFD', text)
+        text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+        return text.lower()
+    
+    summary_normalized = normalize(summary)
+    
+    # Configurar fechas
+    if not start_date:
+        start_date = datetime.now(LOCAL_TZ).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    elif len(start_date) == 10:
+        start_date = datetime.fromisoformat(start_date).replace(tzinfo=LOCAL_TZ).isoformat()
+    
+    if end_date and len(end_date) == 10:
+        end_dt = datetime.fromisoformat(end_date)
+        end_date = end_dt.replace(hour=23, minute=59, second=59, tzinfo=LOCAL_TZ).isoformat()
+    elif not end_date:
+        end_date = (datetime.now(LOCAL_TZ) + timedelta(days=365)).isoformat()
+    
+    # Obtener eventos expandidos (singleEvents=True)
+    events_result = get_calendar_service(user_id).events().list(
+        calendarId=calendar_id,
+        timeMin=start_date,
+        timeMax=end_date,
+        maxResults=2500,
+        singleEvents=True,
+        orderBy="startTime"
+    ).execute()
+    
+    events = events_result.get("items", [])
+    
+    if not events:
+        return {
+            "response": f"No se encontró ningún evento para el periodo indicado.",
+            "undo_info": None 
+        }
+    
+    patched_count = 0
+    patched_summaries = []
+    previous_bodies = []
+    patched_parent_ids = set()  # Para no parchear el mismo padre recurrente varias veces
+    
+    service = get_calendar_service(user_id)
+    
+    for event in events:
+        event_id = event.get("id")
+        event_summary = event.get("summary", "")
+        event_summary_normalized = normalize(event_summary)
+        
+        # Solo modificar si el summary coincide de forma exacta
+        if summary_normalized != event_summary_normalized:
+            continue
+        
+        if not event_id:
+            continue
+        
+        try:
+            # Si es instancia de un evento recurrente, parchear el padre
+            recurring_parent_id = event.get("recurringEventId")
+            if recurring_parent_id:
+                if recurring_parent_id in patched_parent_ids:
+                    continue  # Ya parcheamos este padre, saltar
+                
+                # Guardar estado anterior del padre para undo
+                parent_before = service.events().get(
+                    calendarId=calendar_id, eventId=recurring_parent_id
+                ).execute()
+                previous_bodies.append(parent_before)
+                
+                # Parchear el padre (aplica a todas las instancias)
+                service.events().patch(
+                    calendarId=calendar_id, eventId=recurring_parent_id, body=changes
+                ).execute()
+                
+                patched_parent_ids.add(recurring_parent_id)
+                patched_count += 1
+                patched_summaries.append(f"{event_summary} (serie completa)")
+            else:
+                # Evento individual: parchear directamente
+                event_before = service.events().get(
+                    calendarId=calendar_id, eventId=event_id
+                ).execute()
+                previous_bodies.append(event_before)
+                
+                service.events().patch(
+                    calendarId=calendar_id, eventId=event_id, body=changes
+                ).execute()
+                
+                patched_count += 1
+                patched_summaries.append(event_summary)
+        except Exception as e:
+            print(f"[patch_some_events] Error modificando evento: {e}")
+    
+    if patched_count == 0:
+        return {
+            "response": f"No se encontró ningún evento que coincida con \"{summary}\".",
+            "undo_info": None
+        }
+    
+    # Crear undo_info para poder deshacer
+    undo_info = UndoableAction(
+        operation="patch_some_events",
+        calendarId=calendar_id,
+        eventId="",
+        previous_body=None,
+        previous_bodies=previous_bodies
+    )
+    
+    if patched_count == 1:
+        return {
+            "response": f"He modificado el evento \"{patched_summaries[0]}\" correctamente.",
+            "undo_info": undo_info 
+        }
+    else:
+        return {
+            "response": f"He modificado {patched_count} eventos que coincidían con \"{summary}\" correctamente.",
+            "undo_info": undo_info 
+        }
         
         
 
@@ -532,7 +690,7 @@ def delete_some_events(user_id: str, summary, start_date=None, end_date=None, ca
 def get_events(user_id: str, summary=None, start_date=None, end_date=None, calendar_id="primary", max=2500):
     try:
         if not start_date:
-            start_date = datetime.now(LOCAL_TZ).isoformat()
+            start_date = datetime.now(LOCAL_TZ).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
         elif len(start_date) == 10:
             start_date = datetime.fromisoformat(start_date).replace(tzinfo=LOCAL_TZ).isoformat()
         
@@ -575,7 +733,11 @@ def get_events(user_id: str, summary=None, start_date=None, end_date=None, calen
 
 
 def patch_event(user_id: str, summary, start_date=None, changes=None):
-    event_id = get_id(user_id, summary, start_date, None, "primary")
+    # Determinar si los cambios son "globales" (aplican a toda la serie recurrente)
+    # o específicos de una instancia (cambio de fecha/hora)
+    is_global_change = changes and "start" not in changes and "end" not in changes
+    
+    event_id = get_id(user_id, summary, start_date, None, "primary", find_recurring_parent=is_global_change)
     if not event_id:
         return {
             "response": f"No se encontró el evento “{summary}”.",
@@ -625,9 +787,13 @@ def patch_event(user_id: str, summary, start_date=None, changes=None):
             previous_body=event_before_patch 
         )
         
+        # Indicar si se modificó toda la serie recurrente
+        is_recurring = updated_event.get("recurrence") is not None
+        recurring_suffix = " (todas las repeticiones)" if is_recurring else ""
+        
         friendly_time = _get_friendly_datetime(updated_event.get("start"))
         return {
-            "response": f"El evento “{summary}” se ha actualizado para el {friendly_time} correctamente.",
+            "response": f"El evento “{summary}” se ha actualizado{recurring_suffix} para el {friendly_time} correctamente.",
             "undo_info": undo_info
         }
     except Exception as e:
@@ -635,7 +801,7 @@ def patch_event(user_id: str, summary, start_date=None, changes=None):
         if "out of range" in error_msg or "match format" in error_msg:
             return{"response": "Error: La fecha u hora indicada no es válida.", "undo_info": None}
         else:
-            return {"response": f"Hubo un error técnico al modificar el evento: {str(e)}", "undo_info": None}
+            return {"response": f"Hubo un error técnico al modificar el evento {summary}, intentalo de nuevo.", "undo_info": None}
 
 
 def duplicate_event(user_id: str, summary=None, original_date=None, new_date=None, new_time=None, calendar_id="primary"):
@@ -799,6 +965,21 @@ def undo_last_action(user_id: str, action_to_undo):
                         total_undone += 1
                     except Exception as e:
                         print(f"[undo_last_action] Error restaurando evento: {e}")
+            elif operation == "patch_some_events":
+                # Restaurar estatus anterior de todos los eventos parcheados
+                previous_bodies = action.get('previous_bodies', [])
+                for body in previous_bodies:
+                    try:
+                        body_to_restore = _clean_body_for_restore(body)
+                        event_id_to_restore = body.get('id')
+                        get_calendar_service(user_id).events().update(
+                            calendarId=calendar_id,
+                            eventId=event_id_to_restore,
+                            body=body_to_restore
+                        ).execute()
+                        total_undone += 1
+                    except Exception as e:
+                        print(f"[undo_last_action] Error restaurando evento (patch_some): {e}")
 
         except Exception as e:
             print(f"[undo_last_action] Error técnico deshaciendo {operation}: {e}")
