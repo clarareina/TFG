@@ -681,9 +681,6 @@ def patch_some_events(user_id: str, summary, changes=None, start_date=None, end_
             "undo_info": undo_info 
         }
         
-        
-
-                
                 
 
 

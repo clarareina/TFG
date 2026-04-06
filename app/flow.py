@@ -165,6 +165,7 @@ def run_agent(user_input: str, user_id: str, user_preferences: str = "", convers
             for update in _run_fresh(inputs, config):
                 yield update
         except Exception as e2:
+            print(f"DEBUG ERROR en Nodo: {str(e2)}") # Esto te dirá la verdad en la terminal
             # Si sigue fallando, emitir error
             yield {
                 "type": "response",

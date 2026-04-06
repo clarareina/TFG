@@ -750,6 +750,117 @@ RESPUESTA DEL USUARIO: añade los 3 pero la del martes ponla a las 19:00"
        }
      }
    ]
+
+  Usuario: "Necesito ir al Fisio el día 15 a la 13:00, reorganiza mi día para que sea posible"
+  # (Asumiendo que el día 15 es 2026-03-15)
+  RESPUESTA DEL AGENTE: Claro. Para poder encajar la cita con el fisio el día 15 a las 13:00, es necesario mover la "Clase de inglés" que tenías a esa hora.
+
+Tu día podría reorganizarse de la siguiente manera:
+
+* 09:30 - 11:00: Clase de inglés
+* 11:00 - 13:00: Estudio matemáticas
+* 13:00 - 14:00: Fisio (duración estimada de 1h)
+* 14:30: Comida empresa
+* 21:00: Cena
+* 22:00: Fiesta
+
+De esta forma, tendrías un margen de 30 minutos entre el fisio y la comida de empresa.
+  
+RESPUESTA DEL USUARIO: perfecto, hazlo
+  
+  Respuesta:
+  [
+    {
+      "function": "delete_date_events",
+      "parameters": {
+        "start_date": "2026-03-15",
+        "end_date": "2026-03-15"
+      }
+    },
+    {
+      "function": "create_event",
+      "parameters": {
+        "summary": "Clase de inglés",
+        "start_date": "2026-03-15",
+        "start_time": "09:30",
+        "end_time": "11:00"
+      }
+    },
+    {
+      "function": "create_event",
+      "parameters": {
+        "summary": "Estudio matemáticas",
+        "start_date": "2026-03-15",
+        "start_time": "11:00",
+        "end_time": "13:00"
+      }
+    },
+    {
+      "function": "create_event",
+      "parameters": {
+        "summary": "Fisio",
+        "start_date": "2026-03-15",
+        "start_time": "13:00",
+        "end_time": "14:00"
+      }
+    },
+    {
+      "function": "create_event",
+      "parameters": {
+        "summary": "Comida empresa",
+        "start_date": "2026-03-15",
+        "start_time": "14:30"
+      }
+    },
+    {
+      "function": "create_event",
+      "parameters": {
+        "summary": "Cena",
+        "start_date": "2026-03-15",
+        "start_time": "21:00"
+      }
+    },
+    {
+      "function": "create_event",
+      "parameters": {
+        "summary": "Fiesta",
+        "start_date": "2026-03-15",
+        "start_time": "22:00"
+      }
+    }
+  ]
+
+  Usuario: "PETICIÓN ORIGINAL DEL USUARIO: Necesito ir al Fisio el día 15 a la 13:00, reorganiza mi día para que sea posible
+
+RESPUESTA DEL AGENTE: ¡Claro! Teniendo en cuenta tu cita con el fisio, he reorganizado las propuestas.
+
+Aquí tienes las nuevas alternativas para 'Estudio matemáticas':
+
+1. Domingo 15 de marzo a las 15:30
+2. Lunes 16 de marzo a las 14:00
+3. Martes 17 de marzo a las 12:00
+4. Miércoles 18 de marzo a las 12:00
+5. Miércoles 18 de marzo a las 20:00
+
+Elige una opción (por ejemplo, 'la 1') para agendarlo. También puedes escribir 'forzar' para crearlo en el horario original de las 11:00, o 'cancelar' para anular la acción.
+
+RESPUESTA DEL USUARIO: 1"
+  Respuesta:
+  {
+    "function": "patch_event",
+    "parameters": {
+      "summary": "Estudio matemáticas",
+      "start_date": "2026-03-15",
+      "changes": {
+        "start": {
+          "dateTime": "2026-03-15T15:30:00"
+        },
+        "end": {
+          "dateTime": "2026-03-15T17:30:00"
+        }
+      }
+    }
+  }
   """
 
 
@@ -973,7 +1084,7 @@ def analysis_prompt(function_name, raw_data_str, user_query, user_preferences=""
         - ¿Menciona "Reunión" o "Trabajo"? -> Prioriza horario laboral (09:00-18:00).
         - ¿Menciona "Fiesta" o "Salir"? -> Prioriza tarde/noche.
         - etc
-        -Entre cada evento debes intentar dejar 5 minutos de margen para cambio de contexto
+        - IMPORTANTE: Entre cada evento debes intentar dejar minutos de margen para cambio de contexto y desplazamientos
     2.**Filtrar y Seleccionar:**
         - Si el usuario pidió una hora explícita (ej: "a las 10"), esa manda sobre todo lo demás.
         - Si NO pidió hora, usa la lógica del paso 1 para elegir los 3 mejores huecos que encajen con la naturaleza del evento.
@@ -1005,6 +1116,7 @@ def analysis_prompt(function_name, raw_data_str, user_query, user_preferences=""
         - Si pregunta "¿Qué tengo de clase?", ignora "Trabajo" o "Fiesta".
         - Si pregunta "¿Cómo es mi día?", considera todo.
 
+
     2.  **Evaluar:** Revisa los eventos que han pasado el filtro.
 
     3.  **Resumir:** Redacta la respuesta enfocándote en lo que el usuario pidió.
@@ -1013,7 +1125,7 @@ def analysis_prompt(function_name, raw_data_str, user_query, user_preferences=""
 
     4.  **Responder:** Respuesta natural y directa.
 
-    -Entre cada evento debes intentar dejar 5 minutos de margen para cambio de contexto
+    - IMPORTANTE: Entre cada evento debes intentar dejar minutos de margen para cambio de contexto y desplazamientos
     
     REGLA CRÍTICA: NUNCA digas que has agendado, creado, añadido o programado un evento. Eso NO es tu función. Solo puedes INFORMAR sobre lo que hay en el calendario.
 

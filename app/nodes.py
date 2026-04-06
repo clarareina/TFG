@@ -48,7 +48,9 @@ FUNCTION_MAP = {
     "patch_event": calendar_tools.patch_event,
     "patch_some_events": calendar_tools.patch_some_events,
     "get_events": calendar_tools.get_events,
-    "undo_last_action": calendar_tools.undo_last_action
+    "undo_last_action": calendar_tools.undo_last_action,
+    "find_free_slots": calendar_tools.find_free_slots,
+    "find_group_free_slots": calendar_tools.find_group_free_slots,
 }
 
 if not os.getenv("GOOGLE_API_KEY"):
@@ -69,11 +71,12 @@ SAMPLES = {
             "¿Cuándo tengo un hueco libre de dos horas?", "Busca un momento el martes para ir a correr", "¿A qué hora estoy libre mañana?",
             "Hazme un resumen de cómo viene mi semana", "¿Qué tal tengo el mes de octubre?", "Dime lo más importante que tengo hoy",
             "¿Qué tengo programado para esta tarde?", "¿Cuál es el mejor momento para estudiar hoy?", "¿Crees que debería mover algo para descansar más?", 
-            "Dame una estimación de mis horas libres", "Mira si la reunión de las 10 choca con algo", "¿Cuánto tardaré en una cita en la peluquería para alisarme?"
+            "Dame una estimación de mis horas libres","Reorganiza la semana" ,"Mira si la reunión de las 10 choca con algo", "¿Cuánto tardaré en una cita en la peluquería para alisarme?"
             "¿Tengo tiempo suficiente entre clase y el trabajo?", "Estima cuanto tardo en estudiar 3 temas de 60 páginas de historia", 
-            "No quiero que borres nada hoy", "No añadas ninguna reunión más", "Voy a ir al cine mañana", "No modifiques mi calendario por ahora", 
+            "No quiero que borres nada hoy", "quiero ir a pilates a las 18, reorganiza mi día para que sea posible", "No añadas ninguna reunión más", "Voy a ir al cine mañana", "No modifiques mi calendario por ahora", 
             "Quiero salir con mis amigos el viernes", "Quiero ir al gimnasio 3 veces por semana","Cuántos días quedan para mi próxima reunión", "¿Qué te parece mi horario de mañana?", 
-            "¿Crees que trabajo demasiado?", "Crea algo esta tarde"
+            "¿Crees que trabajo demasiado?", "Crea algo esta tarde", "Busca un hueco para añadir un evento mañana","Necesito encontrar un hueco para ir al cine mañana", "¿Qué opción es mejor?", "Busca un hueco para reunirme con juan@gmail.com", 
+            "Dime el mejor hueco para ir a cenar con sara@gmail.com", "Busca entonces por la tarde", "Mira entonces otra semana ", "¿Qué es mejor, añadir una reunión esta tarde o mañana?",
         ],
         "chat":[
             "Hola", "Buenos días", "¿Qué tal estás?", "Gracias", "Hablame de las noticias de hoy",
@@ -97,6 +100,51 @@ def router_node(state: AgentState) -> dict:
     now = datetime.now(LOCAL_TZ)
     raw_msg = state['input_user']
 
+    # ── Leer la última respuesta del asistente para contexto ──
+    last_response = ""
+    history = state.get('conversation_history', [])
+    if history:
+        for msg in reversed(history):
+            if msg.get("role") == "assistant":
+                last_response = msg.get("content", "")
+                break
+
+    # ── Detectar confirmaciones/correcciones usando LLM (no hardcodeado) ──
+    # Solo si hay contexto previo del asistente Y el mensaje es corto
+    if last_response and len(raw_msg.strip()) < 60:
+        context_prompt = f"""Contexto:
+RESPUESTA PREVIA DEL ASISTENTE: "{last_response[:400]}"
+MENSAJE DEL USUARIO: "{raw_msg}"
+
+Clasifica el mensaje del usuario en UNA de estas categorías:
+A) CONFIRMACIÓN: El usuario acepta/confirma algo que el asistente propuso (ej: "si", "vale", "perfecto", "la primera")
+B) CORRECCIÓN: El usuario corrige o se queja de algo que el asistente hizo mal (ej: "pero era el miércoles", "no, a las 5", "te pedí otra cosa")
+C) OTRO: El mensaje no es ni confirmación ni corrección de lo anterior
+
+Responde SOLO: A, B o C"""
+        
+        ctx_response = generar_respuesta(context_prompt)
+        ctx_decision = ctx_response.strip().upper() if isinstance(ctx_response, str) else str(ctx_response).strip().upper()
+        
+        if "A" in ctx_decision or "B" in ctx_decision:
+            # Reformular la intención para que el tool_interpreter entienda
+            reformulation_prompt = f"""Dado este contexto:
+RESPUESTA PREVIA DEL ASISTENTE: {last_response[:500]}
+MENSAJE DEL USUARIO: {raw_msg}
+
+Reformula la intención FINAL del usuario en UNA SOLA instrucción clara y directa de calendario.
+- Si el usuario acepta/confirma: genera la instrucción de ACCIÓN (ej: "Mueve el evento X al día Y a las HH:MM").
+- Si el usuario corrige: genera la instrucción corregida (ej: "Cambia la cena del jueves al miércoles").
+
+Responde SOLO con la instrucción reformulada, nada más."""
+            
+            reformulated = generar_respuesta(reformulation_prompt)
+            reformulated = reformulated.strip() if isinstance(reformulated, str) else str(reformulated).strip()
+            print(f"[Router] Contexto detectado ({ctx_decision}). Reformulado: {reformulated}")
+            
+            return {"routing_decision": "tool_use", "input_user": reformulated}
+    # ── Fin detección contextual ──
+
     if not CACHED_VECTORS:
         embeddings_model = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
         for category, examples in SAMPLES.items():
@@ -118,10 +166,17 @@ def router_node(state: AgentState) -> dict:
     if max_score >= 0.65: 
         return {"routing_decision": best_category}
     
+    # ── Añadir contexto de conversación al prompt LLM de fallback ──
+    context_hint = ""
+    if history:
+        last_assistant = next((m.get("content", "") for m in reversed(history) if m.get("role") == "assistant"), "")
+        if last_assistant:
+            context_hint = f'\nCONTEXTO: El asistente acaba de decir: "{last_assistant[:200]}"\n'
+
     classification_prompt = f"""
     Eres un enrutador de sistema ciego. Clasifica el texto. Debes saber que hoy es {now.strftime('%Y-%m-%d')}.
     Debes comprobar primero que sean cosas relacionadas con el calendario, sino mandar a chat
-
+    {context_hint}
     CATEGORÍAS:
     1. tool_use: Acciones (crear, borrar, modificar, deshacer). 
     2. reasoning: Consultas de razonamiento, análisis, búsquedas.
@@ -137,12 +192,12 @@ def router_node(state: AgentState) -> dict:
         - Para la petición "Borra todo"
     
     Orden de prioridad: reasoning > chat > tool_use
-    Petición: "{raw_msg}" # Usamos el mensaje original con mayúsculas para el LLM
+    Petición: "{raw_msg}"
     Responde SOLO: tool_use, reasoning o chat
     """
     
-    response_obj = generar_respuesta(classification_prompt)
-    decision = response_obj.content.strip().lower() if hasattr(response_obj, 'content') else str(response_obj).strip().lower()
+    response_text = generar_respuesta(classification_prompt)
+    decision = response_text.strip().lower() if isinstance(response_text, str) else str(response_text).strip().lower()
     
     if "tool" in decision:
         return {"routing_decision": "tool_use"}
@@ -363,8 +418,9 @@ def confirmation_node(state: dict) -> dict:
     """Devuelve la respuesta final al usuario."""
     results = state.get("api_response_list", [])
     if not results:
-        return {"final_response": "No se obtuvo respuesta del calendario. Inténtalo de nuevo."}
-    return {"final_response": "\n".join(results)} 
+        return {"final_response": "No se obtuvo respuesta, intentalo de nuevo", "last_llm_response": ""}
+    response = "\n".join(results)
+    return {"final_response": response, "last_llm_response": response}
 
 
 
@@ -784,20 +840,23 @@ def process_user_decision(state: AgentState) -> dict:
             "verification_result": VerificationResult(conflict_found=False, conflicting_events=[])
         }
     
-    # SEGUNDO: Detectar si es una NUEVA PETICIÓN en lugar de respuesta a opciones
-    # Palabras clave que indican una nueva acción/petición (NO incluye "cancela" ni "forzar")
-    new_request_keywords = [
-        "busca", "crea", "borra", "elimina", "agenda", "pon ", "quita", "modifica", 
-        "mueve", "cambia", "duplica", "deshaz", "revierte", "muestra", 
-        "lista", "cuándo", "cuando", "qué tengo", "que tengo", "hay algún", "hay algun",
-        "dame", "dime", "encuentra", "tengo algo", "reunión", "reunion", "evento",
-        "hola", "buenos días", "buenas tardes"
-    ]
+    # SEGUNDO: Detectar si es una NUEVA PETICIÓN usando LLM en lugar de keywords
+    classification_prompt = f"""Tienes este contexto:
+RESPUESTA PREVIA DEL ASISTENTE: "{llm_previous_response[:300]}"
+MENSAJE DEL USUARIO: "{user_choice}"
+
+¿El mensaje del usuario es:
+A) Una respuesta/continuación de lo que el asistente preguntó (ej: elegir opción, confirmar, matizar)
+B) Una petición completamente nueva sin relación con lo anterior
+
+Responde SOLO: A o B"""
+
+    response_text = generar_respuesta(classification_prompt)
+    decision = response_text.strip().upper() if isinstance(response_text, str) else str(response_text).strip().upper()
     
-    # Si el mensaje parece una nueva petición (contiene palabras clave de acción)
-    has_new_request_keyword = any(kw in user_choice_lower for kw in new_request_keywords)
-    
-    if has_new_request_keyword:
+    is_new_request = "B" in decision
+
+    if is_new_request:
         return {
             "input_user": user_choice,  # El mensaje original del usuario
             "pending_action": None,
@@ -807,17 +866,30 @@ def process_user_decision(state: AgentState) -> dict:
             "routing_decision": "new_request"  # Nueva ruta al router
         }
 
-    # TERCERO: Es una respuesta a las opciones, combinar contexto
-    combined_input = f"""PETICIÓN ORIGINAL DEL USUARIO: {original_user_input}
+    # TERCERO: Es una respuesta a las opciones → reformular como instrucción directa
+    # El router usa embeddings, así que necesitamos una instrucción clara y accionable,
+    # no un blob de contexto que el router no sabrá clasificar.
+    reformulation_prompt = f"""Dado este contexto:
+PETICIÓN ORIGINAL: {original_user_input}
+RESPUESTA DEL ASISTENTE: {llm_previous_response[:500]}
+RESPUESTA DEL USUARIO: {user_choice}
 
-RESPUESTA DEL AGENTE: {llm_previous_response}
+Reformula la intención FINAL del usuario en UNA SOLA instrucción clara y directa.
+- Si el usuario acepta una opción propuesta (hueco, hora, etc.), genera la instrucción de ACCIÓN correspondiente (ej: "Crea evento X el día Y de HH:MM a HH:MM").
+- Si el usuario pide ajustar algo, genera la instrucción ajustada.
+- Si el usuario solo pide más información o análisis, genera una pregunta clara.
 
-RESPUESTA DEL USUARIO: {user_choice}"""
+Responde SOLO con la instrucción reformulada, nada más."""
+
+    reformulated = generar_respuesta(reformulation_prompt)
+    reformulated = reformulated.strip() if isinstance(reformulated, str) else str(reformulated).strip()
+    
+    print(f"[ProcessDecision] Reformulado: {reformulated}")
     
     return {
-        "input_user": combined_input,
+        "input_user": reformulated,
         "pending_action": None,
-        "routing_decision": "to_interpreter" # Forzamos re-interpretación
+        "routing_decision": "to_router"  # Ruta genérica al router
     }
 
 
@@ -869,6 +941,16 @@ def chat_node(state: dict) -> dict:
     
     fecha_hoy = f"{dias[now.weekday()]}, {now.day} de {meses[now.month - 1]} de {now.year}"
 
+    # ── Historial de conversación para contexto ──
+    conversation_history = state.get('conversation_history', [])
+    history_context = ""
+    if conversation_history:
+        history_context = "\n\nCONVERSACIÓN RECIENTE:\n"
+        for msg in conversation_history[-4:]:  # Solo últimos 4 mensajes
+            role = "Usuario" if msg.get("role") == "user" else "Asistente"
+            history_context += f"{role}: {msg.get('content', '')}\n"
+    # ── Fin historial ──
+
     prompt = f"""
     INFORMACIÓN DE CONTEXTO OBLIGATORIA (LA VERDAD ABSOLUTA):
     Hoy es: {fecha_hoy}.
@@ -882,10 +964,12 @@ def chat_node(state: dict) -> dict:
     4. Si el usuario te pregunta sobre temas que no tienen nada que ver con agenda, tiempo o productividad, recuérdale amablemente que tu especialidad es el calendario.
     5. Si el usuario te pregunta por algo que parece ofensivo, peligroso o sobre cómo funcionas internamente, recuérdale amablemente que tu especialidad es el calendario y que no puedes responder a esto.    
     6. NO generes JSON. Solo texto conversacional.
+    7. PROHIBIDO ABSOLUTO: NUNCA digas que has creado, movido, borrado, modificado o añadido un evento al calendario. Tú NO tienes la capacidad de ejecutar acciones sobre el calendario. Si el usuario te pide hacer algo en su calendario, dile: "Claro, dime los detalles (nombre, fecha, hora) y lo gestiono." pero NUNCA confirmes que lo has hecho.
+    8. NUNCA digas frases como "Ya está en tu calendario", "Lo he movido", "Evento creado", "Ya figura", "He añadido" o similares. Eso es MENTIR.
 
     IMPORTANTE: Si el usuario pide: "Borra todo" / "Elimina todo" ... debes respoder: Claro, puedo eliminar eventos, pero 'todo' es un rango muy amplio. Por favor, especifica el rango (mes, semana, etc).
     """
-    final_prompt = f"{prompt}\n\nUsuario: {state['input_user']}"
+    final_prompt = f"{prompt}{history_context}\n\nUsuario: {state['input_user']}"
     response = generar_respuesta(final_prompt).strip()
     
     return {"api_response_list": [response]}
@@ -944,9 +1028,10 @@ workflow.add_conditional_edges("process_user_decision",
     lambda state: state.get("routing_decision"),
     {
         "end": "confirmer",         # Usuario canceló
-        "to_interpreter": "tool_interpreter",  # Combina respuestas y pasa a tool_interpreter para reintentar
+        "to_interpreter": "tool_interpreter",  # Solo para conflictos de proposer
+        "to_router": "router",      # Refinaciones de reasoning/tool
         "force_execute": "tool_executor",  # Forzar ejecución sin verificar conflictos
-        "new_request": "router"     # NUEVO: Nueva petición, procesar desde cero
+        "new_request": "router"     # Nueva petición, procesar desde cero
     }
 )
 

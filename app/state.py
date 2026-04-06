@@ -23,12 +23,13 @@ class AgentState(TypedDict):
     """
     Representa el estado completo de una ejecución del agente.
     (Este es el "formulario" que viaja por el grafo)
-        """
+    """
     input_user: str
     user_id: str
     user_preferences: str
     
-    conversation_history: List[str]
+    conversation_history: List[Dict[str, str]]  
+    last_llm_response: Optional[str]            # Última respuesta del asistente (para contexto en router y process_user_decision)
 
     structured_json_list: Optional[List[Dict[str, Any]]]   # El JSON que sale de Gemini
     api_response_list: Optional[List[Any]]   # La respuesta de Calendar 
@@ -42,5 +43,3 @@ class AgentState(TypedDict):
     routing_decision: Optional[str]
     is_final: Optional[bool]
     analysis_has_options: Optional[bool]  # Para bifurcación en analysis_node
-
-
