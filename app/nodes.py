@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 import sqlite3, atexit
 import numpy as np
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from sklearn.metrics.pairwise import cosine_similarity
+# from sklearn.metrics.pairwise import cosine_similarity
 from dotenv import load_dotenv
 import os
 
@@ -77,6 +77,8 @@ SAMPLES = {
             "Quiero salir con mis amigos el viernes", "Quiero ir al gimnasio 3 veces por semana","Cuántos días quedan para mi próxima reunión", "¿Qué te parece mi horario de mañana?", 
             "¿Crees que trabajo demasiado?", "Crea algo esta tarde", "Busca un hueco para añadir un evento mañana","Necesito encontrar un hueco para ir al cine mañana", "¿Qué opción es mejor?", "Busca un hueco para reunirme con juan@gmail.com", 
             "Dime el mejor hueco para ir a cenar con sara@gmail.com", "Busca entonces por la tarde", "Mira entonces otra semana ", "¿Qué es mejor, añadir una reunión esta tarde o mañana?",
+            "Dime mis 5 eventos más comunes", "Redacta mis 5 eventos más frecuentes", "Cuáles son mis eventos más repetidos",
+            "Dime cuántas veces voy al gimnasio", "Muéstrame un resumen de mis eventos de este mes", "Cuáles son los eventos que más se repiten en mi agenda",
         ],
         "chat":[
             "Hola", "Buenos días", "¿Qué tal estás?", "Gracias", "Hablame de las noticias de hoy",
@@ -112,6 +114,18 @@ def router_node(state: AgentState) -> dict:
     # ── Detectar confirmaciones/correcciones usando LLM (no hardcodeado) ──
     # Solo si hay contexto previo del asistente Y el mensaje es corto
     if last_response and len(raw_msg.strip()) < 60:
+        # GUARD: Primero verificar si el mensaje es relevante para el calendario
+        # Si parece ofensivo, fuera de tema o sin sentido, ir directo a chat
+        relevance_guard_prompt = f"""¿El siguiente mensaje del usuario es una petición relacionada con un calendario (confirmar, corregir, crear, borrar o modificar un evento)?
+MENSAJE: "{raw_msg}"
+Responde SOLO: SI o NO"""
+        guard_response = generar_respuesta(relevance_guard_prompt)
+        guard_decision = guard_response.strip().upper() if isinstance(guard_response, str) else str(guard_response).strip().upper()
+        
+        if "NO" in guard_decision:
+            print(f"[Router] Mensaje irrelevante/ofensivo detectado en guard contextual. Enviando a chat.")
+            return {"routing_decision": "chat"}
+
         context_prompt = f"""Contexto:
 RESPUESTA PREVIA DEL ASISTENTE: "{last_response[:400]}"
 MENSAJE DEL USUARIO: "{raw_msg}"
@@ -155,7 +169,9 @@ Responde SOLO con la instrucción reformulada, nada más."""
         
     results = {}
     for category, example_vecs in CACHED_VECTORS.items():
-        similarity = cosine_similarity([user_vec], example_vecs).max() # Usamos max para mayor precisión
+        # similarity = cosine_similarity([user_vec], example_vecs).max() # Usamos max para mayor precisión
+        similarity = float(np.dot([user_vec], np.array(example_vecs).T).max() / 
+             (np.linalg.norm(user_vec) * np.linalg.norm(example_vecs, axis=1)).max())
         results[category] = similarity
     
     best_category = max(results, key=results.get)
@@ -214,6 +230,21 @@ def tool_interpreter(state: dict) -> dict:
     user_input = state['input_user']
     conversation_history = state.get('conversation_history', [])
     user_preferences = state.get('user_preferences', '')
+    
+    # GUARD DE RELEVANCIA: verificar que la petición es realmente una acción de calendario
+    guard_prompt = f"""Tu tarea es determinar si la siguiente petición del usuario es una acción válida de calendario (crear, borrar, modificar, duplicar o deshacer un evento de agenda).
+Petición: "{user_input}"
+
+IMPORTANTE: Una acción válida de calendario implica manipular un evento/cita/tarea en una agenda. NO son acciones válidas: peticiones de salud/medicina sin relación con agendar (ej: 'empástame una muela'), solicitudes ofensivas, peticiones imposibles o sin sentido de calendario.
+
+Responde SOLO: SI (es una acción de calendario válida) o NO (no lo es)"""
+    
+    guard_response = generar_respuesta(guard_prompt)
+    guard_decision = guard_response.strip().upper() if isinstance(guard_response, str) else str(guard_response).strip().upper()
+    
+    if "NO" in guard_decision:
+        print(f"[ToolInterpreter] Petición rechazada por guard de relevancia: {user_input}")
+        return {"structured_json_list": [], "tool_refused": True}
     
     # Construir contexto de conversación reciente
     history_context = ""
@@ -286,6 +317,14 @@ def tool_executor(state: AgentState) -> dict:
     current_undo_list = state.get('last_undoable_action') or []  # Lista existente o nueva
     current_user_id = state.get('user_id')
     execution_results = []
+    
+    # Si el interpreter rechazó la petición por no ser una acción de calendario válida,
+    # devolvemos el mensaje de rechazo directamente sin ejecutar nada.
+    if state.get('tool_refused'):
+        return {
+            "api_response_list": ["No puedo responderte a esto, mi especialidad es la gestión de tu calendario."],
+            "last_undoable_action": None
+        }
     
     # Lista para acumular las acciones de esta ejecución
     new_undo_actions = []
@@ -961,8 +1000,8 @@ def chat_node(state: dict) -> dict:
     1. SI EL USUARIO PREGUNTA QUÉ DÍA ES HOY: Responde INMEDIATAMENTE con la fecha proporcionada arriba ({fecha_hoy}). NO DIGAS que no lo sabes. NO BUSQUES en el calendario. Tú YA SABES qué día es porque te lo acabo de decir.
     2. Mantén un tono profesional pero cercano.
     3. Tus respuestas deben ser concisas (máximo 2 frases).
-    4. Si el usuario te pregunta sobre temas que no tienen nada que ver con agenda, tiempo o productividad, recuérdale amablemente que tu especialidad es el calendario.
-    5. Si el usuario te pregunta por algo que parece ofensivo, peligroso o sobre cómo funcionas internamente, recuérdale amablemente que tu especialidad es el calendario y que no puedes responder a esto.    
+    4. Si el usuario te pregunta sobre temas que no tienen nada que ver con agenda, tiempo o productividad, respóndele exactamente: "No puedo responderte a esto, mi especialidad es la gestión de tu calendario."
+    5. Si el usuario te pregunta por algo que parece ofensivo, peligroso, sin sentido o sobre cómo funcionas internamente, respóndele exactamente: "No puedo responderte a esto, mi especialidad es la gestión de tu calendario."
     6. NO generes JSON. Solo texto conversacional.
     7. PROHIBIDO ABSOLUTO: NUNCA digas que has creado, movido, borrado, modificado o añadido un evento al calendario. Tú NO tienes la capacidad de ejecutar acciones sobre el calendario. Si el usuario te pide hacer algo en su calendario, dile: "Claro, dime los detalles (nombre, fecha, hora) y lo gestiono." pero NUNCA confirmes que lo has hecho.
     8. NUNCA digas frases como "Ya está en tu calendario", "Lo he movido", "Evento creado", "Ya figura", "He añadido" o similares. Eso es MENTIR.

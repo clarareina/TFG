@@ -43,3 +43,4 @@ class AgentState(TypedDict):
     routing_decision: Optional[str]
     is_final: Optional[bool]
     analysis_has_options: Optional[bool]  # Para bifurcación en analysis_node
+    tool_refused: Optional[bool]          # True si tool_interpreter rechazó la petición por no ser una acción de calendario

@@ -1,0 +1,26 @@
+# ── Git y Basura ──
+.git/
+.gitignore
+.DS_Store
+.idea/
+.vscode/
+
+# ── Python ──
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# ── Variables y Bases de Datos ──
+.env
+*.db
+*.sqlite
+checkpoints*
+
+# ── Frontend (SOLO ignoramos las carpetas pesadas/generadas) ──
+**/node_modules/
+frontend/dist/
+frontend/.vite/

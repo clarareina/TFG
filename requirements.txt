@@ -1,27 +1,18 @@
-# API de Google (Calendar + Auth)
-google-api-python-client #permite hablar con Calendar, Drive, Gmail, etc.
-google-auth-oauthlib #abrir la ventanita del navegador para login
-google-auth-httplib2 #usa ese login para enviar las peticiones
-sqlalchemy #ORM (Object Relational Mapper). Traduce código Python a SQL
-
-# Gemini
-google-generativeai
-
-# LangChain y LangGraph
-langchain
-langgraph
-langgraph-checkpoint-sqlite  
-langchain-core<1.0.0
-
-# Utilidades
-python-dotenv
-tinydb  # Para logs y trazabilidad
-tzlocal  # Para gestionar automáticamente la zona horaria local
-pandas
-langchain-google-genai 
-scikit-learn
-
-# Backend
-fastapi
-uvicorn[standard]
-pydantic
+google-api-python-client==2.193.0
+google-auth-oauthlib==1.3.1
+google-auth-httplib2==0.3.1
+sqlalchemy==2.0.49
+google-generativeai==0.8.6
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-google-genai>=2.0.0
+langgraph>=0.2.0
+langgraph-checkpoint-sqlite>=2.0.0
+python-dotenv==1.2.2
+tinydb==4.8.2
+tzlocal==5.3.1
+pandas==2.3.3
+fastapi==0.135.3
+uvicorn[standard]==0.44.0
+pydantic==2.12.5
+numpy>=1.22.4

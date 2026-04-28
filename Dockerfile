@@ -1,22 +1,27 @@
-# 1. Imagen base: Python 3.10 ligero
-FROM python:3.10-slim
+# ── STAGE 1: Construcción del Frontend ──
+FROM node:18-slim AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build
 
-# 2. Evita archivos basura de Python
+# ── STAGE 2: Preparación del Backend ──
+FROM python:3.10-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-
-# 3. Directorio de trabajo en el contenedor
 WORKDIR /app
 
-# 4. Copiamos dependencias e instalamos
+# Instalamos dependencias de Python
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 5. Copia todo el código al contenedor
+# Copiamos el código del backend
 COPY . .
 
-# 6. Cloud Run inyecta la variable PORT (normalmente 8080)
-ENV PORT=8080
+# Copiamos SOLO la carpeta compilada del frontend desde el Stage 1
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# 7. Comando de arranque con configuración para streaming SSE
+# Cloud Run inyecta la variable PORT
+ENV PORT=8080
 CMD exec uvicorn app.main:app --host 0.0.0.0 --port $PORT --timeout-keep-alive 120
