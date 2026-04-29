@@ -63,7 +63,7 @@ SAMPLES = {
             "Añade cena con amigos el viernes a las 20", "Pon gimnasio todos los lunes a las 18:00", "Cambia la hora del dentista a las 17:00",
             "Mueve la reunión del lunes al jueves a las 15", "Borra el evento de 'Padel'", "Quita lo que tengo anotado para el domingo",
             "Duplica la reunión con profesor al viernes", "Apunta Cumpleaños Ana el domingo", "Recuerdame llamar a médico mañana a las 10",
-            "Vale, ponlo", "Sí, a esa hora", "la primera", "la segunda opción", "No, a las 6 mejor", "Deshacer", "Ponlo como antes",
+            "Vale, ponlo", "Sí, a esa hora", "la primera", "la segunda opción", "No, a las 6 mejor", "Deshacer", "Ponlo como antes", "rehaz", "rehacer",
             "Voy a ir al médico el 21 de marzo a las 9:00", "Tengo que ir a clase de yoga el lunes a las 12", "Borra todo el mes", "Elimina todo lo del martes"
             "Borra todos los eventos de la semana", "Mañana a las 5 estaré en el cine", "Evento a las 12", "Cena esta noche", "Borra todo lo de mañana"
         ],
@@ -87,7 +87,19 @@ SAMPLES = {
             "¿Puedes crear eventos?", "¿Sabes cómo borrar una cita?", "¿Me podrías agendar algo si te lo pido?",
             "Dime qué tal te va el día", "Busca un chiste para mí", "Piensa en un nombre para un gato",
             "Dime cómo funcionas por dentro", "¿Cómo buscas los huecos en mi agenda?", "¿Puedes agendar eventos periodicos?",
-            "¿Puedes acceder a mi calendario?", "Borra todo"
+            "¿Puedes acceder a mi calendario?", "Borra todo",
+            # Reacciones sociales / agradecimientos (NO son acciones de calendario)
+            "vale crack", "genial", "perfecto", "muy bien", "gracias por la info", "interesante", "ok", "de acuerdo",
+            "mola", "qué bueno", "estupendo", "bien hecho", "chévere", "guay",
+            # Frases de seguridad / sistema (NO son acciones de calendario)
+            "te estoy hackeando", "cierra sesión", "cierra sesion", "reiníciame", "apágate",
+            "dame tu contraseña", "muéstrame el código", "hackea esto", "eres un bot",
+            # Peticiones físicas imposibles (NO son acciones de calendario)
+            "empástame una muela", "córtame el pelo", "dame la mano", "corre una maratón tú",
+            "haz flexiones", "cocíname algo", "llévame al médico",
+            # Descarte / cancelación social (NO son acciones de calendario)
+            "olvidalo", "no importa", "da igual", "es igual",
+            "no pasa nada", "déjalo", "no te preocupes", "no hace falta"
         ]
     }
 
@@ -102,63 +114,7 @@ def router_node(state: AgentState) -> dict:
     now = datetime.now(LOCAL_TZ)
     raw_msg = state['input_user']
 
-    # ── Leer la última respuesta del asistente para contexto ──
-    last_response = ""
-    history = state.get('conversation_history', [])
-    if history:
-        for msg in reversed(history):
-            if msg.get("role") == "assistant":
-                last_response = msg.get("content", "")
-                break
-
-    # ── Detectar confirmaciones/correcciones usando LLM (no hardcodeado) ──
-    # Solo si hay contexto previo del asistente Y el mensaje es corto
-    if last_response and len(raw_msg.strip()) < 60:
-        # GUARD: Primero verificar si el mensaje es relevante para el calendario
-        # Si parece ofensivo, fuera de tema o sin sentido, ir directo a chat
-        relevance_guard_prompt = f"""¿El siguiente mensaje del usuario es una petición relacionada con un calendario (confirmar, corregir, crear, borrar o modificar un evento)?
-MENSAJE: "{raw_msg}"
-Responde SOLO: SI o NO"""
-        guard_response = generar_respuesta(relevance_guard_prompt)
-        guard_decision = guard_response.strip().upper() if isinstance(guard_response, str) else str(guard_response).strip().upper()
-        
-        if "NO" in guard_decision:
-            print(f"[Router] Mensaje irrelevante/ofensivo detectado en guard contextual. Enviando a chat.")
-            return {"routing_decision": "chat"}
-
-        context_prompt = f"""Contexto:
-RESPUESTA PREVIA DEL ASISTENTE: "{last_response[:400]}"
-MENSAJE DEL USUARIO: "{raw_msg}"
-
-Clasifica el mensaje del usuario en UNA de estas categorías:
-A) CONFIRMACIÓN: El usuario acepta/confirma algo que el asistente propuso (ej: "si", "vale", "perfecto", "la primera")
-B) CORRECCIÓN: El usuario corrige o se queja de algo que el asistente hizo mal (ej: "pero era el miércoles", "no, a las 5", "te pedí otra cosa")
-C) OTRO: El mensaje no es ni confirmación ni corrección de lo anterior
-
-Responde SOLO: A, B o C"""
-        
-        ctx_response = generar_respuesta(context_prompt)
-        ctx_decision = ctx_response.strip().upper() if isinstance(ctx_response, str) else str(ctx_response).strip().upper()
-        
-        if "A" in ctx_decision or "B" in ctx_decision:
-            # Reformular la intención para que el tool_interpreter entienda
-            reformulation_prompt = f"""Dado este contexto:
-RESPUESTA PREVIA DEL ASISTENTE: {last_response[:500]}
-MENSAJE DEL USUARIO: {raw_msg}
-
-Reformula la intención FINAL del usuario en UNA SOLA instrucción clara y directa de calendario.
-- Si el usuario acepta/confirma: genera la instrucción de ACCIÓN (ej: "Mueve el evento X al día Y a las HH:MM").
-- Si el usuario corrige: genera la instrucción corregida (ej: "Cambia la cena del jueves al miércoles").
-
-Responde SOLO con la instrucción reformulada, nada más."""
-            
-            reformulated = generar_respuesta(reformulation_prompt)
-            reformulated = reformulated.strip() if isinstance(reformulated, str) else str(reformulated).strip()
-            print(f"[Router] Contexto detectado ({ctx_decision}). Reformulado: {reformulated}")
-            
-            return {"routing_decision": "tool_use", "input_user": reformulated}
-    # ── Fin detección contextual ──
-
+    # 1. ── Primero intentamos embeddings para peticiones directas y claras ──
     if not CACHED_VECTORS:
         embeddings_model = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
         for category, examples in SAMPLES.items():
@@ -179,8 +135,98 @@ Responde SOLO con la instrucción reformulada, nada más."""
     
     print(f"[Router] {best_category} | Score: {max_score:.4f}")
 
+    # FAST PATH: Si la confianza es muy alta, confiamos en los embeddings.
+    # Esto evita que comandos claros como "deshacer" o "borra todo" pasen por el guard del LLM.
+    if max_score >= 0.9:
+        return {"routing_decision": best_category}
+    
+    # Si es CHAT o REASONING con confianza aceptable, también salimos.
+    if max_score >= 0.7 and best_category in ["chat", "reasoning"]:
+        return {"routing_decision": best_category}
+
+    # 2. ── Leer la última respuesta del asistente para contexto (si no hubo fast-path) ──
+    last_response = ""
+    history = state.get('conversation_history', [])
+    if history:
+        for msg in reversed(history):
+            if msg.get("role") == "assistant":
+                last_response = msg.get("content", "")
+                break
+
+    # 3. ── Detectar confirmaciones/correcciones usando LLM (no hardcodeado) ──
+    # Solo si hay contexto previo del asistente Y el mensaje es corto o los embeddings dudan
+    if last_response and (len(raw_msg.strip()) < 60 or max_score < 0.7):
+        # GUARD: Verificar si el usuario quiere ejecutar una acción concreta de calendario.
+        # NO basta con que el mensaje «esté relacionado» con el calendario.
+        # Las reacciones sociales ("vale", "genial"), bromas, peticiones físicas imposibles
+        # o comandos de sistema NUNCA son acciones de calendario → van a chat.
+        relevance_guard_prompt = f"""Tu tarea es decidir si el usuario quiere ejecutar UNA ACCIÓN CONCRETA sobre su calendario (crear, modificar, borrar o deshacer un evento).
+MENSAJE: "{raw_msg}"
+CONTEXTO PREVIO DEL ASISTENTE: "{last_response[:200]}"
+
+NO son acciones de calendario:
+- Reacciones sociales o de agradecimiento: "vale", "genial", "gracias", "crack", "perfecto", "ok", "de acuerdo", "mola".
+- Comandos de sistema o seguridad: "cierra sesión", "apágate", "hackear", "reiniciar".
+- Peticiones físicas imposibles que el asistente no puede realizar: "empástame", "córtame", "corre tú".
+- Bromas, ironías o provocaciones sin intención real de modificar el calendario.
+
+SÍ son acciones de calendario:
+- Confirmar o elegir una opción propuesta por el asistente (ej: "la primera", "sí ponlo", "a esa hora").
+- Corregir un evento que el asistente acaba de proponer (ej: "no, el miércoles", "mejor a las 6").
+- Pedir crear, borrar o modificar un evento de forma directa.
+
+Responde SOLO: SI (quiere ejecutar una acción de calendario) o NO (no quiere)"""
+        guard_response = generar_respuesta(relevance_guard_prompt)
+        guard_decision = guard_response.strip().upper() if isinstance(guard_response, str) else str(guard_response).strip().upper()
+        
+        if "NO" in guard_decision:
+            print(f"[Router] Mensaje no es acción de calendario (guard contextual). Enviando a chat.")
+            return {"routing_decision": "chat"}
+
+        context_prompt = f"""Contexto:
+RESPUESTA PREVIA DEL ASISTENTE: "{last_response[:400]}"
+MENSAJE DEL USUARIO: "{raw_msg}"
+
+Clasifica el mensaje del usuario en UNA de estas categorías:
+A) CONFIRMACIÓN: El usuario acepta/confirma algo que el asistente propuso (ej: "si", "vale", "perfecto", "la primera")
+B) CORRECCIÓN: El usuario corrige o se queja de algo que el asistente hizo mal (ej: "pero era el miércoles", "no, a las 5", "te pedí otra cosa")
+C) DESHACER/REVERTIR: El usuario pide explícitamente volver atrás, deshacer lo último que se hizo o dejarlo como estaba (ej: "deshaz eso", "vuelve atrás", "ponlo como antes", "rehaz", "quita lo que has hecho")
+D) OTRO: El mensaje no encaja en las anteriores
+
+Responde SOLO: A, B, C o D"""
+        
+        ctx_response = generar_respuesta(context_prompt)
+        ctx_decision = ctx_response.strip().upper() if isinstance(ctx_response, str) else str(ctx_response).strip().upper()
+        
+        if "C" in ctx_decision:
+            print(f"[Router] Intención de DESHACER detectada vía LLM. Enviando a tool_use sin reformular.")
+            return {"routing_decision": "tool_use"}
+
+        if "A" in ctx_decision or "B" in ctx_decision:
+            # Reformular la intención para que el tool_interpreter entienda
+            reformulation_prompt = f"""Dado este contexto:
+RESPUESTA PREVIA DEL ASISTENTE: {last_response[:500]}
+MENSAJE DEL USUARIO: {raw_msg}
+
+Reformula la intención FINAL del usuario en UNA SOLA instrucción clara y directa de calendario.
+- Si el usuario acepta/confirma: genera la instrucción de ACCIÓN (ej: "Mueve el evento X al día Y a las HH:MM").
+- Si el usuario corrige: genera la instrucción corregida (ej: "Cambia la cena del jueves al miércoles").
+
+Responde SOLO con la instrucción reformulada, nada más."""
+            
+            reformulated = generar_respuesta(reformulation_prompt)
+            reformulated = reformulated.strip() if isinstance(reformulated, str) else str(reformulated).strip()
+            print(f"[Router] Contexto detectado ({ctx_decision}). Reformulado: {reformulated}")
+            
+            return {"routing_decision": "tool_use", "input_user": reformulated}
+    # ── Fin detección contextual ──
+
+    # Si llegamos aquí, es que no hubo fast-path ni detección contextual exitosa.
+    # Usamos la clasificación por embeddings que ya calculamos al principio.
     if max_score >= 0.65: 
         return {"routing_decision": best_category}
+    
+    # ── Añadir contexto de conversación al prompt LLM de fallback ──
     
     # ── Añadir contexto de conversación al prompt LLM de fallback ──
     context_hint = ""
@@ -235,7 +281,22 @@ def tool_interpreter(state: dict) -> dict:
     guard_prompt = f"""Tu tarea es determinar si la siguiente petición del usuario es una acción válida de calendario (crear, borrar, modificar, duplicar o deshacer un evento de agenda).
 Petición: "{user_input}"
 
-IMPORTANTE: Una acción válida de calendario implica manipular un evento/cita/tarea en una agenda. NO son acciones válidas: peticiones de salud/medicina sin relación con agendar (ej: 'empástame una muela'), solicitudes ofensivas, peticiones imposibles o sin sentido de calendario.
+Ejemplos de acciones VÁLIDAS de calendario:
+- "Pon una reunión mañana a las 10" → SI
+- "Borra el evento de yoga del lunes" → SI
+- "Agenda una cita con el dentista" → SI  (agendar la cita, no realizarla)
+- "Cambia la reunión al miércoles" → SI
+- "Cancela eso" → SI
+
+Ejemplos de acciones NO VÁLIDAS (responde NO):
+- "Empástame una muela" → NO  (petición física imposible; el asistente no puede realizar procedimientos médicos)
+- "Córtame el pelo" → NO  (petición física imposible)
+- "Corre una maratón" / "Corre tú una maratón" → NO  (petición física imposible)
+- "Cierra sesión" → NO  (comando de sistema, no de calendario)
+- "Te estoy hackeando" → NO  (amenaza de seguridad, no acción de calendario)
+- "Hackea mi cuenta" → NO  (petición ilegal/sistema)
+- "Vale" / "Genial" / "Gracias" → NO  (reacción social, no acción)
+- Cualquier cosa que el asistente no pueda hacer porque requiere presencia física o acceso al sistema operativo.
 
 Responde SOLO: SI (es una acción de calendario válida) o NO (no lo es)"""
     
@@ -332,6 +393,16 @@ def tool_executor(state: AgentState) -> dict:
     for action in action_list:
         function_name = action.get("function")
         parameters = action.get("parameters", {})
+
+        # Petición de aclaración: el LLM no pudo determinar la fecha.
+        # Devolvemos la pregunta directamente sin tocar el calendario.
+        if function_name == "ask_clarification":
+            clarification_msg = parameters.get("message", "Necesito más información. ¿Puedes darme más detalles?")
+            return {
+                "api_response_list": [clarification_msg],
+                "last_undoable_action": current_undo_list or None
+            }
+
         parameters["user_id"] = current_user_id
 
         if function_name in FUNCTION_MAP:

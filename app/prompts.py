@@ -139,7 +139,15 @@ def tool_prompt(user_preferences=""):
   Usa esta función cuando el usuario quiera modificar VARIOS eventos del mismo tipo o periódicos.
   Por ejemplo: "cambia todos los yoga a morado", "pon todas las reuniones en rojo", "cambia el color de todos los gimnasio".
   IMPORTANTE: Si el usuario dice "todos los X" o "los X" (plural/periódicos) y quiere cambiar color, título, ubicación u otro atributo, usa patch_some_events, NO patch_event.
-  ────────────────────────────────────────
+
+  10) ask_clarification
+  Pide aclaración al usuario cuando la fecha/hora no se puede determinar con la información disponible.
+  Parámetros: message (string con la pregunta concreta al usuario).
+  USA ESTA FUNCIÓN cuando:
+  - El usuario hace referencia a un periodo personal no definido ("en mis vacaciones", "en mi cumpleaños", "en Navidad") sin especificar fecha concreta.
+  - La fecha depende de información que el agente NO tiene (cuándo son las vacaciones del usuario, etc.).
+  NUNCA inventes una fecha cuando la referencia es ambigua — usa ask_clarification.
+  ————————————————————————————————————————
   Reglas de interpretación (OBLIGATORIAS)
 
   A) Invitados (attendees)
@@ -486,6 +494,24 @@ def tool_prompt(user_preferences=""):
   #     "end_date": "2025-10-13"
   #   }
   # }
+
+  Usuario: "Añade un evento Fiesta de 2h en mis vacaciones"
+  Respuesta:
+  {
+    "function": "ask_clarification",
+    "parameters": {
+      "message": "No sé cuándo son tus vacaciones. ¿Puedes indicarme la fecha en la que quieres que ponga la Fiesta?"
+    }
+  }
+
+  Usuario: "Pon cena de cumpleaños en mi cumpleaños"
+  Respuesta:
+  {
+    "function": "ask_clarification",
+    "parameters": {
+      "message": "No sé cuándo es tu cumpleaños. ¿Puedes decirme la fecha?"
+    }
+  }
 
   Usuario: "Cancela eso"
   Respuesta:
