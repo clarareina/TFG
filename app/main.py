@@ -167,9 +167,7 @@ def get_preferences(user_id: str = Query(...)):
     return {"preferences": user.preferences or ""}
 
 
-# ============================================================================
-# ENDPOINT PRINCIPAL DEL CHAT (con streaming SSE)
-# ============================================================================
+# ENDPOINT PRINCIPAL DEL CHAT 
 from fastapi.responses import StreamingResponse
 from app.flow import run_agent
 

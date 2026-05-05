@@ -89,17 +89,15 @@ SAMPLES = {
             "Dime cómo funcionas por dentro", "¿Cómo buscas los huecos en mi agenda?", "¿Puedes agendar eventos periodicos?",
             "¿Puedes acceder a mi calendario?", "Borra todo",
             # Reacciones sociales / agradecimientos (NO son acciones de calendario)
-            "vale crack", "genial", "perfecto", "muy bien", "gracias por la info", "interesante", "ok", "de acuerdo",
-            "mola", "qué bueno", "estupendo", "bien hecho", "chévere", "guay",
+            "vale", "genial", "perfecto", "muy bien", "gracias por la info", "ok",
+            "mola", "estupendo", "bien hecho", "guay",
             # Frases de seguridad / sistema (NO son acciones de calendario)
             "te estoy hackeando", "cierra sesión", "cierra sesion", "reiníciame", "apágate",
             "dame tu contraseña", "muéstrame el código", "hackea esto", "eres un bot",
             # Peticiones físicas imposibles (NO son acciones de calendario)
-            "empástame una muela", "córtame el pelo", "dame la mano", "corre una maratón tú",
-            "haz flexiones", "cocíname algo", "llévame al médico",
+            "empástame una muela", "córtame el pelo", "dame la mano", "corre una maratón", "cocíname", "llévame al médico",
             # Descarte / cancelación social (NO son acciones de calendario)
-            "olvidalo", "no importa", "da igual", "es igual",
-            "no pasa nada", "déjalo", "no te preocupes", "no hace falta"
+            "olvidalo", "no importa", "no te preocupes"
         ]
     }
 
