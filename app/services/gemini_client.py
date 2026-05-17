@@ -23,7 +23,7 @@ def generar_respuesta(prompt, temp=0.2):
 
     try:
         # model = genai.GenerativeModel("gemini-2.5-pro")
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        model = genai.GenerativeModel("gemini-2.5-pro")
         response = model.generate_content(prompt, stream=True, generation_config={"temperature": temp})
     except (ResourceExhausted, PermissionDenied):
         model = genai.GenerativeModel("gemini-2.5-flash")

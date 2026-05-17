@@ -717,8 +717,26 @@ def get_events(user_id: str, summary=None, start_date=None, end_date=None, calen
     else:
         text = "Próximos eventos:\n"
         for e in events:
-            start = e["start"].get("dateTime", e["start"].get("date"))
-            text += f"- {start} | {e.get('summary', '(Sin título)')}\n"
+            # Obtenemos la fecha original
+            fecha_cruda = e["start"].get("dateTime", e["start"].get("date"))
+            
+            # Convertimos y damos formato
+            try:
+                fecha_obj = datetime.fromisoformat(fecha_cruda.replace('Z', '+00:00'))
+                
+                if "dateTime" in e["start"]:
+                    # Si tiene hora (Ej: 15/05/2026 a las 10:30)
+                    start_amigable = fecha_obj.strftime("%d/%m/%Y a las %H:%M")
+                else:
+                    # Si es de todo el día (Ej: 15/05/2026)
+                    start_amigable = fecha_obj.strftime("%d/%m/%Y")
+            except Exception:
+                # Plan B: Si la API devuelve un formato raro que falla, usamos el original para que no se rompa el código
+                start_amigable = fecha_cruda
+
+            # Añadimos la fecha amigable al texto final
+            text += f"- {start_amigable} | {e.get('summary', '(Sin título)')}\n"
+            
         text = text.strip()
 
     return {

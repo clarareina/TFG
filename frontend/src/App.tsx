@@ -48,8 +48,8 @@ const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
       backgroundColor: '#e6f0fcff', flexDirection: 'column', gap: '20px'
     }}>
       <div className="card" style={{ width: '500px', minHeight: '300px', padding: '40px 40px', alignItems: 'center', justifyContent: 'flex-end', display: 'flex', flexDirection: 'column', gap: '25px' }}>
-        <h2 style={{ fontSize: '32px', margin: '0' }}>TFG</h2>
-        <p style={{ color: '#666', textAlign: 'center', fontSize: '25px', margin: '0 0 10px 0' }}>Inicia sesión con una cuenta de google</p>
+        <h2 style={{ fontSize: '37px', margin: '0' }}>ASISTENTE DE CALENDARIO</h2>
+        <p style={{ color: '#666', textAlign: 'center', fontSize: '22px', margin: '0 0 10px 0' }}>Inicia sesión con una cuenta de google</p>
         <div style={{ display: 'flex', width: '100%' }}>
           <input
             type="email" placeholder="Introduce tu email" value={email}

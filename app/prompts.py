@@ -96,19 +96,18 @@ def tool_prompt(user_preferences=""):
 
   2) delete_event
   Elimina un evento existente en el calendario.
-  Parámetros: summary, start_date, end_date (opcional para rangos).
-  Llama a get_id para obtener el eventId.
+  Parámetros: summary (OBLIGATORIO), start_date (OPCIONAL), end_date (OPCIONAL).
+  Llama a get_id para obtener el eventId. NO pidas la fecha si el usuario no la proporciona; el sistema buscará el evento solo por el título (summary).
 
   3) duplicate_event
   Duplica un evento existente en otra fecha (y opcionalmente otra hora).
-  Parámetros: summary, original_date, new_date, new_time (opcional).
+  Parámetros: summary, original_date (OPCIONAL), new_date, new_time (opcional).
 
   4) patch_event
-  Modifica parcialmente un evento (título, hora, ubicación, color, recordatorios, asistentes, recurrencia…).
-  Parámetros: summary, start_date, changes (objeto con los campos a modificar, p. ej. summary, description, location, colorId, attendees, recurrence, reminders, start/end con date/time separados).
-  Llama a get_id para obtener el eventId.
+  Modifica parcialmente un evento (título, hora, ubicación, color, recordatorios...).
+  Parámetros: summary (OBLIGATORIO), changes (OBLIGATORIO, objeto con los campos a modificar), start_date (OPCIONAL).
+  NO pidas la fecha original para modificar un evento si el usuario no la especifica. El sistema lo encontrará automáticamente por el nombre.
   
-
 
   # 5) get_events (USO INTERNO - NO EXPONER AL USUARIO)
   # Obtiene los eventos de un periodo o filtrados por nombre.
@@ -141,12 +140,13 @@ def tool_prompt(user_preferences=""):
   IMPORTANTE: Si el usuario dice "todos los X" o "los X" (plural/periódicos) y quiere cambiar color, título, ubicación u otro atributo, usa patch_some_events, NO patch_event.
 
   10) ask_clarification
-  Pide aclaración al usuario cuando la fecha/hora no se puede determinar con la información disponible.
+  Pide aclaración al usuario cuando falta un dato ESTRICTAMENTE NECESARIO que el sistema no puede deducir.
   Parámetros: message (string con la pregunta concreta al usuario).
   USA ESTA FUNCIÓN cuando:
-  - El usuario hace referencia a un periodo personal no definido ("en mis vacaciones", "en mi cumpleaños", "en Navidad") sin especificar fecha concreta.
-  - La fecha depende de información que el agente NO tiene (cuándo son las vacaciones del usuario, etc.).
-  NUNCA inventes una fecha cuando la referencia es ambigua — usa ask_clarification.
+  - El usuario hace referencia a un periodo personal no definido ("en mis vacaciones") sin especificar fecha.
+  PROHIBICIONES CRÍTICAS PARA ESTA FUNCIÓN:
+  - PROHIBIDO usar esta función para confirmar acciones ("Gracias, lo gestiono", "Entendido", "Procedo a...").
+  - PROHIBIDO usar esta función para pedir la fecha original de un evento al borrar o modificar (usa delete_event o patch_event sin start_date en su lugar).
   ————————————————————————————————————————
   Reglas de interpretación (OBLIGATORIAS)
 
@@ -622,18 +622,17 @@ def tool_prompt(user_preferences=""):
   ]
 
   # ─────────────────────────────────────────────────────────────────────
-  # CASOS ESPECIALES: Entradas combinadas (tras elegir hueco alternativo)
-  # Estas entradas vienen del sistema con 3 partes:
-  # 1. PETICIÓN ORIGINAL DEL USUARIO
-  # 2. RESPUESTA DEL AGENTE (con las opciones)
-  # 3. RESPUESTA DEL USUARIO (eligiendo)
+  # CASOS ESPECIALES: Resolución de Referencias y Contexto (¡CRÍTICO!)
+  # Cuando el usuario responde de forma corta o hace referencia a opciones previas 
+  # (ej: "añade ambos", "la primera", "el segundo", "añade el miércoles"), DEBES 
+  # leer el CONTEXTO DE CONVERSACIÓN RECIENTE para identificar el nombre real del 
+  # evento (summary), las fechas y las horas propuestas por el asistente.
   # ─────────────────────────────────────────────────────────────────────
 
-  Usuario: "PETICIÓN ORIGINAL DEL USUARIO: búscame los dos mejores huecos para ir al gimnasio esta semana por la mañana durante 2h
-
-RESPUESTA DEL AGENTE: Los mejores huecos para ir al gimnasio son: 1. Lunes 20 de enero de 08:00 a 10:00, 2. Martes 21 de enero de 09:00 a 11:00. ¿Agendo alguno?
-
-RESPUESTA DEL USUARIO: sí, añade la segunda en color rojo"
+  CONTEXTO DE CONVERSACIÓN RECIENTE:
+  Usuario: búscame los dos mejores huecos para ir al gimnasio esta semana por la mañana durante 2h
+  Asistente: Los mejores huecos para ir al gimnasio son: 1. 🟢 Lunes 20 de enero de 08:00 a 10:00, 2. 🟢 Martes 21 de enero de 09:00 a 11:00. ¿Agendo alguno?
+  Usuario: sí, añade la segunda en color rojo
   Respuesta:
   {
     "function": "create_event",
@@ -647,28 +646,38 @@ RESPUESTA DEL USUARIO: sí, añade la segunda en color rojo"
     }
   }
 
-  Usuario: "PETICIÓN ORIGINAL DEL USUARIO: crea una reunión con Juan el viernes a las 10
-
-RESPUESTA DEL AGENTE: Conflicto detectado para 'Reunión con Juan'. Ya hay un evento a esa hora. Alternativas: 1. Viernes 17 de 15:00 a 16:00, 2. Viernes 17 de 17:00 a 18:00.
-
-RESPUESTA DEL USUARIO: la primera"
+  CONTEXTO DE CONVERSACIÓN RECIENTE:
+  Usuario: busca dos huecos para ir a una clase de zumba la semana q viene
+  Asistente: Claro, aquí tienes dos opciones para ir a una clase de zumba la semana que viene: 1. Lunes, 20 de Mayo de 08:00 a 09:15, 2. Miércoles, 22 de Mayo de 08:00 a 09:15.
+  Usuario: Añade ambos como Zumba
   Respuesta:
-  {
-    "function": "create_event",
-    "parameters": {
-      "summary": "Reunión con Juan",
-      "start_date": "2025-01-17",
-      "start_time": "15:00",
-      "end_date": "2025-01-17",
-      "end_time": "16:00"
+  [
+    {
+      "function": "create_event",
+      "parameters": {
+        "summary": "Zumba",
+        "start_date": "2026-05-20",
+        "start_time": "08:00",
+        "end_date": "2026-05-20",
+        "end_time": "09:15"
+      }
+    },
+    {
+      "function": "create_event",
+      "parameters": {
+        "summary": "Zumba",
+        "start_date": "2026-05-22",
+        "start_time": "08:00",
+        "end_date": "2026-05-22",
+        "end_time": "09:15"
+      }
     }
-  }
+  ]
 
-  Usuario: "PETICIÓN ORIGINAL DEL USUARIO: busca hueco para cena de equipo el sábado
-
-RESPUESTA DEL AGENTE: He encontrado estos huecos: 1. Sábado 25 de 20:00 a 22:00, 2. Domingo 26 de 21:00 a 23:00.
-
-RESPUESTA DEL USUARIO: la 1 y ponle descripción 'celebración trimestral'"
+  CONTEXTO DE CONVERSACIÓN RECIENTE:
+  Usuario: busca hueco para cena de equipo el sábado
+  Asistente: He encontrado estos huecos: 1. Sábado 25 de 20:00 a 22:00, 2. Domingo 26 de 21:00 a 23:00.
+  Usuario: la 1 y ponle descripción 'celebración trimestral'
   Respuesta:
   {
     "function": "create_event",
@@ -679,212 +688,6 @@ RESPUESTA DEL USUARIO: la 1 y ponle descripción 'celebración trimestral'"
       "end_date": "2025-01-25",
       "end_time": "22:00",
       "description": "celebración trimestral"
-    }
-  }
-
-  Usuario: "PETICIÓN ORIGINAL DEL USUARIO: búscame 3 huecos para estudiar esta semana
-
-RESPUESTA DEL AGENTE: He encontrado estos huecos para estudiar: 1. Lunes 20 de 10:00 a 12:00, 2. Martes 21 de 14:00 a 16:00, 3. Miércoles 22 de 09:00 a 11:00.
-
-RESPUESTA DEL USUARIO: añade los 3"
-  Respuesta:
-  [
-    {
-      "function": "create_event",
-      "parameters": {
-        "summary": "Estudiar",
-        "start_date": "2025-01-20",
-        "start_time": "10:00",
-        "end_date": "2025-01-20",
-        "end_time": "12:00"
-      }
-    },
-    {
-      "function": "create_event",
-      "parameters": {
-        "summary": "Estudiar",
-        "start_date": "2025-01-21",
-        "start_time": "14:00",
-        "end_date": "2025-01-21",
-        "end_time": "16:00"
-      }
-    },
-    {
-      "function": "create_event",
-      "parameters": {
-        "summary": "Estudiar",
-        "start_date": "2025-01-22",
-        "start_time": "09:00",
-        "end_date": "2025-01-22",
-        "end_time": "11:00"
-      }
-    }
-  ]
-
-  Usuario: "PETICIÓN ORIGINAL DEL USUARIO: busca 3 huecos para yoga esta semana
-
-RESPUESTA DEL AGENTE: He encontrado estos huecos: 1. Lunes 20 de 07:00 a 08:00, 2. Martes 21 de 18:00 a 19:00, 3. Jueves 23 de 07:00 a 08:00.
-
-RESPUESTA DEL USUARIO: añade los 3 pero la del martes ponla a las 19:00"
-  Respuesta:
-  [
-    {
-      "function": "create_event",
-      "parameters": {
-        "summary": "Yoga",
-        "start_date": "2025-01-20",
-        "start_time": "07:00",
-        "end_date": "2025-01-20",
-        "end_time": "08:00"
-      }
-    },
-    {
-      "function": "create_event",
-      "parameters": {
-        "summary": "Yoga",
-        "start_date": "2025-01-21",
-        "start_time": "19:00",
-        "end_date": "2025-01-21",
-        "end_time": "20:00"
-      }
-    },
-    {
-      "function": "create_event",
-      "parameters": {
-        "summary": "Yoga",
-        "start_date": "2025-01-23",
-        "start_time": "07:00",
-        "end_date": "2025-01-23",
-        "end_time": "08:00"
-      }
-    }
-  ]
-
-
-  Usuario: "PETICIÓN ORIGINAL DEL USUARIO: borra todo
- 
- RESPUESTA DEL AGENTE: Claro, puedo eliminar eventos, pero 'todo' es un rango muy amplio. Por favor, especifica el rango (mes, semana, etc).
- 
- RESPUESTA DEL USUARIO: la semana"
-   Respuesta:
-   [
-     {
-       "function": "delete_date_events",
-       "parameters": {
-         "start_date": "2024-01-20",
-         "end_date": "2024-01-26"
-       }
-     }
-   ]
-
-  Usuario: "Necesito ir al Fisio el día 15 a la 13:00, reorganiza mi día para que sea posible"
-  # (Asumiendo que el día 15 es 2026-03-15)
-  RESPUESTA DEL AGENTE: Claro. Para poder encajar la cita con el fisio el día 15 a las 13:00, es necesario mover la "Clase de inglés" que tenías a esa hora.
-
-Tu día podría reorganizarse de la siguiente manera:
-
-* 09:30 - 11:00: Clase de inglés
-* 11:00 - 13:00: Estudio matemáticas
-* 13:00 - 14:00: Fisio (duración estimada de 1h)
-* 14:30: Comida empresa
-* 21:00: Cena
-* 22:00: Fiesta
-
-De esta forma, tendrías un margen de 30 minutos entre el fisio y la comida de empresa.
-  
-RESPUESTA DEL USUARIO: perfecto, hazlo
-  
-  Respuesta:
-  [
-    {
-      "function": "delete_date_events",
-      "parameters": {
-        "start_date": "2026-03-15",
-        "end_date": "2026-03-15"
-      }
-    },
-    {
-      "function": "create_event",
-      "parameters": {
-        "summary": "Clase de inglés",
-        "start_date": "2026-03-15",
-        "start_time": "09:30",
-        "end_time": "11:00"
-      }
-    },
-    {
-      "function": "create_event",
-      "parameters": {
-        "summary": "Estudio matemáticas",
-        "start_date": "2026-03-15",
-        "start_time": "11:00",
-        "end_time": "13:00"
-      }
-    },
-    {
-      "function": "create_event",
-      "parameters": {
-        "summary": "Fisio",
-        "start_date": "2026-03-15",
-        "start_time": "13:00",
-        "end_time": "14:00"
-      }
-    },
-    {
-      "function": "create_event",
-      "parameters": {
-        "summary": "Comida empresa",
-        "start_date": "2026-03-15",
-        "start_time": "14:30"
-      }
-    },
-    {
-      "function": "create_event",
-      "parameters": {
-        "summary": "Cena",
-        "start_date": "2026-03-15",
-        "start_time": "21:00"
-      }
-    },
-    {
-      "function": "create_event",
-      "parameters": {
-        "summary": "Fiesta",
-        "start_date": "2026-03-15",
-        "start_time": "22:00"
-      }
-    }
-  ]
-
-  Usuario: "PETICIÓN ORIGINAL DEL USUARIO: Necesito ir al Fisio el día 15 a la 13:00, reorganiza mi día para que sea posible
-
-RESPUESTA DEL AGENTE: ¡Claro! Teniendo en cuenta tu cita con el fisio, he reorganizado las propuestas.
-
-Aquí tienes las nuevas alternativas para 'Estudio matemáticas':
-
-1. Domingo 15 de marzo a las 15:30
-2. Lunes 16 de marzo a las 14:00
-3. Martes 17 de marzo a las 12:00
-4. Miércoles 18 de marzo a las 12:00
-5. Miércoles 18 de marzo a las 20:00
-
-Elige una opción (por ejemplo, 'la 1') para agendarlo. También puedes escribir 'forzar' para crearlo en el horario original de las 11:00, o 'cancelar' para anular la acción.
-
-RESPUESTA DEL USUARIO: 1"
-  Respuesta:
-  {
-    "function": "patch_event",
-    "parameters": {
-      "summary": "Estudio matemáticas",
-      "start_date": "2026-03-15",
-      "changes": {
-        "start": {
-          "dateTime": "2026-03-15T15:30:00"
-        },
-        "end": {
-          "dateTime": "2026-03-15T17:30:00"
-        }
-      }
     }
   }
   """
@@ -901,9 +704,10 @@ RESPUESTA DEL USUARIO: 1"
   {p}
 
   INSTRUCCIÓN FINAL (MUY IMPORTANTE)
-  Devuelve ÚNICAMENTE el bloque JSON con el formato indicado.
-  No escribas texto adicional, explicaciones ni comentarios antes o después.
-  La salida debe empezar directamente con 2 corchetes abiertos y terminar con 2 corchetes cerrados.
+  Genera ÚNICAMENTE código JSON. 
+  PROHIBIDO escribir texto conversacional como "Claro", "Entendido", "Necesito saber la fecha".
+  PROHIBIDO hacer preguntas al usuario fuera de la estructura JSON. Si necesitas aclaración, debes usar EXCLUSIVAMENTE la función 'ask_clarification' dentro del JSON.
+  La respuesta debe ser 100% parseable por `json.loads()` en Python.
   """
   return prompt
 
@@ -1061,12 +865,29 @@ def reasoning_prompt():
       }}
     }}
   ]
+
+  # CASO 9: Saber cuándo es o cuánto falta para un evento específico
+  Usuario: "¿Cuántos días quedan para mi próxima clase de inglés?"
+  JSON:
+  [
+    {{
+      "function": "get_events",
+      "parameters": {{
+        "summary": "clase de inglés"
+      }}
+    }}
+  ]
   ---
 
   INSTRUCCIÓN:
   Analiza la fecha actual real proporcionada arriba.
   Calcula las fechas relativas (mañana, próxima semana, este viernes) con precisión.
   Devuelve SOLO el JSON.
+
+  REGLA DE CÁLCULO:
+  - 'Esta semana' = Desde hoy hasta el próximo domingo.
+  - 'La próxima semana' = El bloque de Lunes a Domingo inmediatamente posterior al domingo de esta semana.
+  - Si hoy es viernes 15, 'la próxima semana' DEBE empezar el lunes 18.
 
   Usuario: "{{user_message}}"
   JSON:
@@ -1154,6 +975,12 @@ def analysis_prompt(function_name, raw_data_str, user_query, user_preferences=""
     - IMPORTANTE: Entre cada evento debes intentar dejar minutos de margen para cambio de contexto y desplazamientos
     
     REGLA CRÍTICA: NUNCA digas que has agendado, creado, añadido o programado un evento. Eso NO es tu función. Solo puedes INFORMAR sobre lo que hay en el calendario.
+    REGLAS CRÍTICAS DE REDACCIÓN:
+    1. SI EL USUARIO PIDE UN RESUMEN: NO devuelvas una lista con viñetas robótica. Redacta un párrafo natural y fluido. Agrupa la información (ej: "Esta semana la tienes bastante tranquila, empiezas el lunes con X y el jueves tienes Y...").
+    2. PROHIBIDO INVENTAR DURACIONES: NUNCA digas "estimado 1h" a menos que no haya hora de fin. Si los datos crudos tienen 'start' y 'end', fíjate en esas horas exactas (ej: si es de 16:00 a 18:00, dura 2 horas).
+    3. Si la función fue 'find_free_slots', enumera las opciones claramente para que el usuario pueda elegir.
+    4. Si los Datos Crudos dicen "No se encontraron eventos" o la lista está vacía ([]), dile al usuario amablemente que tiene la agenda libre para ese periodo.
+    5. Utiliza un tono cercano pero profesional.
 
     Tu respuesta final:
     """
