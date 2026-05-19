@@ -690,6 +690,23 @@ def tool_prompt(user_preferences=""):
       "description": "celebración trimestral"
     }
   }
+
+
+  CONTEXTO DE CONVERSACIÓN RECIENTE:
+  Usuario: busca hueco para reunión la semana que viene
+  Asistente: He encontrado estos huecos: 1. Lunes 25 de 10:00 a 10:30, 2. Martes 26 de 10:00 a 10:30, 3. Martes 26 de 11:00 a 11:30
+  Usuario: la 2
+  Respuesta:
+  {
+    "function": "create_event",
+    "parameters": {
+      "summary": "Reunión",
+      "start_date": "2025-01-26",
+      "start_time": "10:00",
+      "end_date": "2025-01-26",
+      "end_time": "10:30",
+    }
+  }
   """
 
 

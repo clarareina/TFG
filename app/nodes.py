@@ -84,7 +84,8 @@ SAMPLES = {
         "Duplica la reunión con profesor al viernes",
         # Confirmaciones / Correcciones / Deshacer (Vitales aquí)
         "Vale, ponlo", "Sí, a esa hora", "la primera", "la segunda opción", 
-        "No, a las 6 mejor", "Deshacer", "Ponlo como antes", "rehaz", "rehacer"
+        "No, a las 6 mejor", "Deshacer", "Ponlo como antes", "rehaz", "rehacer",
+        "1", "2", "3", "la 1", "la 2"
     ],
     "reasoning": [
         # Búsqueda de huecos (personales y en grupo)
@@ -696,8 +697,14 @@ def propose_node(state:AgentState) -> dict:
     
     prompt = proposer_prompt(user_query, raw_data_str, conflict_info)     # busca los mejores huecos
     response_text = generar_respuesta(prompt).strip()
+    current_history = state.get("conversation_history", [])
+    updated_history = current_history + [{"role": "assistant", "content": response_text}]
     
-    return {"api_response_list": [response_text], "suggested_slots": []}
+    return {
+        "api_response_list": [response_text], 
+        "suggested_slots": [],
+        "conversation_history": updated_history # Añadimos esto
+    }
 
 
 # def propose_node_OLD(state:AgentState) -> dict:
@@ -830,6 +837,13 @@ def process_user_decision(state: AgentState) -> dict:
             "pending_action": None,
             "routing_decision": "force_execute",
             "verification_result": VerificationResult(conflict_found=False, conflicting_events=[])
+        }
+    
+    if user_choice_lower.isdigit() or any(p in user_choice_lower for p in ["primera", "segunda", "tercera", "opcion", "opción"]):
+        return {
+            "input_user": user_choice,
+            "pending_action": pending_action,
+            "routing_decision": "to_interpreter" # Va directo al tool_interpreter
         }
     
     # Si es una nueva petición o elige una opción diferente, lo mandamos al router
